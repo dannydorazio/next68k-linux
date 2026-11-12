@@ -43,9 +43,9 @@ git status --short | awk '/^ M/ {print $2}' | xargs git update-index --skip-work
 
 ```sh
 cd ~/git/trunk
-patch -p0 < ../next68k-linux/previous/previous-linux.patch
+python3 ../next68k-linux/previous/patches.py apply
 mkdir build && cd build
-cmake ..
+cmake -DCMAKE_OSX_ARCHITECTURES=arm64 ..
 make -j8
 ```
 

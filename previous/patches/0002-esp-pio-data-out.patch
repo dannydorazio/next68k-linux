@@ -1,0 +1,30 @@
+ESP: non-DMA data transfers
+
+A transfer-information command in the data-out phase without DMA wasn't
+implemented and aborted the emulator: send the FIFO contents to the
+target and interrupt for more.  In the data-in phase, the interrupt
+didn't report bus service.  Linux's ESP driver uses programmed I/O for
+transfers that aren't whole 16-byte DMA bursts.
+
+Upstream candidate.
+
+--- src/esp.c
++++ src/esp.c
+@@ -863,8 +863,17 @@
+         switch (SCSIbus.phase) {
+             case PHASE_DI:
+                 esp_fifo_write(SCSIdisk_Send_Data());
++                intstatus = INTR_BS;
+                 CycInt_AddCyclesEvent(20, EVENT_ESP_INTERRUPT);
+                 break;
++            case PHASE_DO:
++                /* Send the FIFO contents, then interrupt for more */
++                while (fifoflags > 0 && SCSIbus.phase == PHASE_DO) {
++                    SCSIdisk_Receive_Data(esp_fifo_read());
++                }
++                intstatus = INTR_BS;
++                CycInt_AddCyclesEvent(20, EVENT_ESP_INTERRUPT);
++                break;
+             case PHASE_MI:
+                 CycInt_AddCyclesEvent(20, EVENT_ESP_INTERRUPT);
+                 break;

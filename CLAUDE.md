@@ -14,7 +14,7 @@ Sibling checkouts next to this one (`~/git/`):
 | Path | What |
 |---|---|
 | `../linux` | The kernel: local branch `next68k`, tracking `origin/next68k-linux` on github.com/dannydorazio/linux; the Torvalds tree is the `upstream` remote. The NeXT code is `arch/m68k/next/`, `arch/m68k/include/asm/nexthw.h` and the drivers listed under Status in `README.md`. |
-| `../trunk` | Previous, SVN trunk r1864 (https://svn.code.sf.net/p/previous/code/trunk), with `previous/previous-linux.patch` applied, built in `../trunk/build`. |
+| `../trunk` | Previous, SVN trunk r1864 (https://svn.code.sf.net/p/previous/code/trunk), with the series in `previous/patches/` applied (`previous/patches.py apply`), built in `../trunk/build`. |
 | `../NeXTDimension` | NeXT's NeXTdimension sources (github.com/johnsonjh/NeXTDimension): i860 ROM, kernel, host driver. Unlicensed and marked confidential by NeXT: never copy from it, and cite public sources (data sheets, Previous, experiment) rather than it. |
 | `../src/sys/arch/next68k` | NetBSD's next68k port. Reference only; some files carry the 4-clause BSD license, which the GPL can't take. |
 
@@ -69,7 +69,8 @@ python3 scripts/serial-run.py --login "uname -a" "dmesg | tail"
 ./scripts/screenshot.sh out/screen.png    # then look at it
 ./scripts/time-download.sh                # network check: time and MD5
 ./scripts/build-kernel-deb.sh             # then dpkg -i it on the NeXT to update the disk's kernel
-cd ../trunk && svn diff src > ../next68k-linux/previous/previous-linux.patch   # after changing Previous
+python3 previous/patches.py refresh NAME # after changing Previous: rewrite that patch from ../trunk (a new NAME adds one)
+make -C ../trunk/build                    # rebuild Previous
 ./nd-firmware/build.sh                    # after changing ndfw.s
 ```
 

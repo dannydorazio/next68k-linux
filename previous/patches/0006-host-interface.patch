@@ -1,139 +1,20 @@
-Index: src/cpu/cpummu.c
-===================================================================
---- src/cpu/cpummu.c	(revision 1864)
-+++ src/cpu/cpummu.c	(working copy)
-@@ -61,6 +61,7 @@
- uae_u16 mmu_opcode;
- bool mmu_restart;
- static bool locked_rmw_cycle;
-+static bool locked_rmw_read;	/* the read cycle of a locked RMW */
- bool rmw_cycle;
- static bool ismoves;
- bool mmu_ttr_enabled, mmu_ttr_enabled_ins, mmu_ttr_enabled_data;
-@@ -467,7 +468,19 @@
- 		}
- 		if (locked_rmw_cycle) {
- 			ssw |= MMU_SSW_LK;
--			ssw &= ~MMU_SSW_RW;
-+			if (locked_rmw_read) {
-+				/* The read cycle of a locked RMW (CAS, TAS) is
-+				 * checked for write access.  If it faults, nothing
-+				 * has been written yet: the 68040 reports a read
-+				 * with LK set and no pending writeback, and the
-+				 * instruction is restarted.  A valid writeback here
-+				 * would make the handler store a bogus value
-+				 * before CAS runs again. */
-+				ssw |= MMU_SSW_RW;
-+				regs.wb3_status = 0;
-+			} else {
-+				ssw &= ~MMU_SSW_RW;
-+			}
- #if MMUDEBUGMISC > 0
- 			write_log (_T("040 MMU_SSW_LK!\n"));
- #endif
-@@ -533,6 +546,7 @@
- 	ismoves = false;
- 	rmw_cycle = false;
- 	locked_rmw_cycle = false;
-+	locked_rmw_read = false;
- 	regs.mmu_fault_addr = addr;
- 
- #if 0
-@@ -1712,6 +1726,7 @@
- {
- 	uae_u32 v;
- 	locked_rmw_cycle = true;
-+	locked_rmw_read = true;
- 	if (size == sz_byte) {
- 		v = mmu_get_user_byte(addr, regs.s != 0, true, sz_byte, true);
- 	} else if (size == sz_word) {
-@@ -1727,6 +1742,7 @@
- 			v = mmu_get_user_long(addr, regs.s != 0, true, sz_long, true);
- 	}
- 	locked_rmw_cycle = false;
-+	locked_rmw_read = false;
- 	return v;
- }
- 
-Index: src/cpu/mmu_common.h
-===================================================================
---- src/cpu/mmu_common.h	(revision 1864)
-+++ src/cpu/mmu_common.h	(working copy)
-@@ -25,15 +25,26 @@
- #else
- /* we are in plain C, just use a stack of long jumps */
- #include <setjmp.h>
-+/*
-+ * setjmp() and longjmp() also save and restore the signal mask, which on
-+ * macOS costs system calls every time; nothing here changes the signal mask.
-+ */
-+#if defined(__APPLE__) || defined(__unix__)
-+#define uae_setjmp(b)		_setjmp(b)
-+#define uae_longjmp(b, v)	_longjmp(b, v)
-+#else
-+#define uae_setjmp(b)		setjmp(b)
-+#define uae_longjmp(b, v)	longjmp(b, v)
-+#endif
- extern jmp_buf __exbuf;
- extern int     __exvalue;
--#define TRY(DUMMY)       __exvalue=setjmp(__exbuf);       \
-+#define TRY(DUMMY)       __exvalue=uae_setjmp(__exbuf);       \
-                   if (__exvalue==0) { __pushtry(&__exbuf);
- #define CATCH(x)  __poptry(); } else {m68k_exception x=__exvalue; x=x;
- #define ENDTRY    __poptry();}
- #define STOPTRY   __poptry()
--#define THROW(x) if (__is_catched()) {longjmp(__exbuf,x);}
--#define THROW_AGAIN(var) if (__is_catched()) longjmp(*__poptry(),__exvalue)
-+#define THROW(x) if (__is_catched()) {uae_longjmp(__exbuf,x);}
-+#define THROW_AGAIN(var) if (__is_catched()) uae_longjmp(*__poptry(),__exvalue)
- #define SAVE_EXCEPTION
- #define RESTORE_EXCEPTION
- jmp_buf* __poptry(void);
-Index: src/cpu/newcpu.c
-===================================================================
---- src/cpu/newcpu.c	(revision 1864)
-+++ src/cpu/newcpu.c	(working copy)
-@@ -5138,12 +5138,25 @@
- static inline void run_other_MPUs(void)
- {
- 	static int ndCycles = 0;
-+	int cycles = cpu_cycles;
- 
--	ndCycles += cpu_cycles;
-+	/*
-+	 * A stopped CPU (STOP) only waits for an interrupt, which only an
-+	 * event can bring: go straight to the next one instead of executing
-+	 * STOP again every few cycles.
-+	 */
-+	if (regs.stopped) {
-+		uint64_t idle = CycInt_CyclesToNextEvent();
-+		if (idle > (uint64_t)cycles) {
-+			cycles = idle > 0x10000000 ? 0x10000000 : (int)idle;
-+		}
-+	}
-+
-+	ndCycles += cycles;
- 	// bundle some 68k cycles for MPUs
- #if ENABLE_DSP_EMU
- 	if(dsp_core.running)
--		DSP_Run(cpu_cycles);
-+		DSP_Run(cycles);
- #endif
- 	if(ndCycles > 100) {
- 		i860_Run(ndCycles);
-@@ -5150,7 +5163,7 @@
- 		ndCycles = 0;
- 	}
- 
--	M68000_AddCycles(cpu_cycles);
-+	M68000_AddCycles(cycles);
- }
- 
- static int do_specialties (int cycles)
-Index: src/cycInt.c
-===================================================================
---- src/cycInt.c	(revision 1864)
-+++ src/cycInt.c	(working copy)
+A host interface for driving Previous from scripts
+
+- PREVIOUS_SCC_A_PTY and PREVIOUS_SCC_B_PTY connect the serial ports to
+  pseudo terminals, and PREVIOUS_SCC_A_LOG and PREVIOUS_SCC_B_LOG log
+  what the NeXT sends on them.
+- SIGUSR1 sends a serial break on channel A (the kernel's magic SysRq),
+  SIGUSR2 raises an NMI.
+- SIGHUP saves the screen shown in the main window as a PNG to
+  PREVIOUS_SCREENSHOT, which works while the host's display is locked.
+- PREVIOUS_INPUT names a FIFO of keyboard and mouse commands (type, key,
+  down, up, move, button), sent one event at a time at typing speed.
+
+next68k-linux's scripts (run-previous.sh, console.py, serial-run.py,
+sysrq.sh, nmi.sh, screenshot.sh, input.sh) use these.
+
+--- src/cycInt.c
++++ src/cycInt.c
 @@ -78,7 +78,8 @@
  	Video_VBL_Handler,
  	ND_VBL_Handler,
@@ -144,155 +25,8 @@ Index: src/cycInt.c
  };
  
  
-@@ -145,6 +146,19 @@
- 
- /*-----------------------------------------------------------------------*/
- /**
-+ * Cycles until the next event is due (0 if one is due already).
-+ */
-+uint64_t CycInt_CyclesToNextEvent(void) {
-+	uint64_t next = EventList[nCyclesFirst].time;
-+
-+	if (nCheckCycles < next) {
-+		next = nCheckCycles;
-+	}
-+	return next > nCyclesMainCounter ? next - nCyclesMainCounter : 0;
-+}
-+
-+/*-----------------------------------------------------------------------*/
-+/**
-  * Add event to the queue.
-  */
- static inline event_id CycInt_AddEvent(event_id first, event_id i) {
-Index: src/dimension/nd_mem.cpp
-===================================================================
---- src/dimension/nd_mem.cpp	(revision 1864)
-+++ src/dimension/nd_mem.cpp	(working copy)
-@@ -79,8 +79,19 @@
- public:
-     ND_RAM(NextDimension* nd, int bank) : ND_Addrbank(nd), base(nd->ram), mask(nd->bankmask[bank]) {}
- 
-+    /*
-+     * The host and the i860 thread share this memory, for instance a
-+     * command ring and the index that says how far it's filled.  Their
-+     * aligned word accesses are release stores and acquire loads, so
-+     * that one sees the other's stores in order, as on the NeXTBus.
-+     */
-     uint32_t lget(uint32_t addr) const {
--        return do_get_mem_long(base + (addr & mask));
-+        uint8_t* p = base + (addr & mask);
-+        if (((uintptr_t)p & 3) == 0) {
-+            uint32_t be = __atomic_load_n((uint32_t*)p, __ATOMIC_ACQUIRE);
-+            return do_get_mem_long(&be);
-+        }
-+        return do_get_mem_long(p);
-     }
- 
-     uint32_t wget(uint32_t addr) const {
-@@ -92,7 +103,14 @@
-     }
- 
-     void lput(uint32_t addr, uint32_t l) const {
--        do_put_mem_long(base + (addr & mask), l);
-+        uint8_t* p = base + (addr & mask);
-+        if (((uintptr_t)p & 3) == 0) {
-+            uint32_t be;
-+            do_put_mem_long(&be, l);
-+            __atomic_store_n((uint32_t*)p, be, __ATOMIC_RELEASE);
-+            return;
-+        }
-+        do_put_mem_long(p, l);
-     }
- 
-     void wput(uint32_t addr, uint32_t w) const {
-Index: src/esp.c
-===================================================================
---- src/esp.c	(revision 1864)
-+++ src/esp.c	(working copy)
-@@ -863,8 +863,17 @@
-         switch (SCSIbus.phase) {
-             case PHASE_DI:
-                 esp_fifo_write(SCSIdisk_Send_Data());
-+                intstatus = INTR_BS;
-                 CycInt_AddCyclesEvent(20, EVENT_ESP_INTERRUPT);
-                 break;
-+            case PHASE_DO:
-+                /* Send the FIFO contents, then interrupt for more */
-+                while (fifoflags > 0 && SCSIbus.phase == PHASE_DO) {
-+                    SCSIdisk_Receive_Data(esp_fifo_read());
-+                }
-+                intstatus = INTR_BS;
-+                CycInt_AddCyclesEvent(20, EVENT_ESP_INTERRUPT);
-+                break;
-             case PHASE_MI:
-                 CycInt_AddCyclesEvent(20, EVENT_ESP_INTERRUPT);
-                 break;
-Index: src/ethernet.c
-===================================================================
---- src/ethernet.c	(revision 1864)
-+++ src/ethernet.c	(working copy)
-@@ -313,6 +313,10 @@
- #define ENET_IO_DELAY   500     /* use 500 for NeXT hardware test, 20 for status test */
- #define ENET_IO_SHORT   40      /* use 40 for 68030 hardware test */
- 
-+/* Microseconds a frame of len bytes (with CRC) takes on a 10 Mbit/s wire,
-+ * with its preamble and the gap after it: the next can't come sooner. */
-+#define ENET_WIRE_US(len)   (((len) + 8 + 12) * 8 / 10)
-+
- /* Ethernet states */
- enum {
-     RECV_STATE_WAITING,
-@@ -322,6 +326,7 @@
- static bool tx_done;
- static bool rx_chain;
- static int old_size;
-+static int rx_wire_us;
- static int en_state;
- 
- #define EN_DISCONNECTED    0
-@@ -524,6 +529,7 @@
-                 } else { /* done */
-                     Log_Printf(LOG_EN_LEVEL, "[EN] Receiving packet: Transfer complete.");
-                     rx_chain = false;
-+                    rx_wire_us = ENET_WIRE_US(enet_rx_buffer.limit);
-                     enet_rx_interrupt(RXSTAT_PKT_OK);
-                     if (en_state == EN_LOOPBACK) { /* same for thin wire loopback? */
-                         enet_tx_interrupt(TXSTAT_TX_RECVD);
-@@ -686,6 +692,7 @@
-                     break; /* Loop in receiving state */
-                 } else { /* done */
-                     Log_Printf(LOG_EN_LEVEL, "[EN] Receiving packet: Transfer complete.");
-+                    rx_wire_us = ENET_WIRE_US(enet_rx_buffer.limit);
-                     enet_rx_interrupt(RXSTAT_PKT_OK);
-                     if (en_state == EN_LOOPBACK) {
-                         enet_tx_interrupt(TXSTAT_TX_RECVD);
-@@ -726,6 +733,8 @@
- }
- 
- void Ethernet_IO_Handler(void) {
-+    int delay;
-+
-     if (enet.reset&EN_RESET) {
-         Log_Printf(LOG_WARN, "Stopping Ethernet Transmitter/Receiver");
-         /* Stop SLIRP/PCAP */
-@@ -741,7 +750,12 @@
-         enet_io();
-     }
-     
--    CycInt_UpdateTimeEvent(receiver_state==RECV_STATE_WAITING?ENET_IO_DELAY:ENET_IO_SHORT, 0, EVENT_ETHERNET_IO);
-+    delay = receiver_state==RECV_STATE_WAITING?ENET_IO_DELAY:ENET_IO_SHORT;
-+    if (rx_wire_us > delay) {
-+        delay = rx_wire_us; /* until the frame just received has gone by */
-+    }
-+    rx_wire_us = 0;
-+    CycInt_UpdateTimeEvent(delay, 0, EVENT_ETHERNET_IO);
- }
- 
- void enet_reset(void) {
-Index: src/grab.c
-===================================================================
---- src/grab.c	(revision 1864)
-+++ src/grab.c	(working copy)
+--- src/grab.c
++++ src/grab.c
 @@ -603,6 +603,43 @@
  }
  
@@ -337,10 +71,8 @@ Index: src/grab.c
   * Grab print.
   */
  void Grab_Print(uint8_t* data, int width, int height, int dpi) {
-Index: src/includes/cycInt.h
-===================================================================
---- src/includes/cycInt.h	(revision 1864)
-+++ src/includes/cycInt.h	(working copy)
+--- src/includes/cycInt.h
++++ src/includes/cycInt.h
 @@ -36,6 +36,7 @@
  	EVENT_ND_VBL,
  	EVENT_ND_VIDEO_VBL,
@@ -349,18 +81,8 @@ Index: src/includes/cycInt.h
  	NUM_EVENTS
  } event_id;
  
-@@ -43,6 +44,7 @@
- 
- extern void CycInt_Reset(void);
- extern void CycInt_AddCycles(int Cycles);
-+extern uint64_t CycInt_CyclesToNextEvent(void);
- extern void CycInt_AddCyclesEvent(uint64_t Cycles, event_id i);
- extern void CycInt_UpdateCyclesEvent(uint64_t Cycles, event_id i);
- extern void CycInt_AddTimeEvent(uint64_t RealTime, uint64_t FastTime, event_id i);
-Index: src/includes/grab.h
-===================================================================
---- src/includes/grab.h	(revision 1864)
-+++ src/includes/grab.h	(working copy)
+--- src/includes/grab.h
++++ src/includes/grab.h
 @@ -9,6 +9,7 @@
  #define PREV_GRAB_H
  
@@ -369,10 +91,8 @@ Index: src/includes/grab.h
  extern void Grab_Print(uint8_t* data, int width, int height, int dpi);
  
  extern void Grab_Sound(uint8_t* samples, int len);
-Index: src/includes/kms.h
-===================================================================
---- src/includes/kms.h	(revision 1864)
-+++ src/includes/kms.h	(working copy)
+--- src/includes/kms.h
++++ src/includes/kms.h
 @@ -111,6 +111,8 @@
  extern void kms_send_sndout_request(void);
  
@@ -382,10 +102,8 @@ Index: src/includes/kms.h
  
  extern void KMS_Ctrl_Snd_Write(void);
  extern void KMS_Stat_Snd_Read(void);
-Index: src/includes/scc.h
-===================================================================
---- src/includes/scc.h	(revision 1864)
-+++ src/includes/scc.h	(working copy)
+--- src/includes/scc.h
++++ src/includes/scc.h
 @@ -22,6 +22,7 @@
  extern void SCC_Reset(void);
  
@@ -394,14 +112,13 @@ Index: src/includes/scc.h
  
  extern void scc_receive(int ch, uint8_t val);
  
-Index: src/kms.c
-===================================================================
---- src/kms.c	(revision 1864)
-+++ src/kms.c	(working copy)
-@@ -730,3 +730,235 @@
+--- src/kms.c
++++ src/kms.c
+@@ -729,4 +729,236 @@
+ void KMS_Reset(void) {
      kms.rev = ConfigureParams.System.bTurbo?REV_NEW:REV_OLD;
      kms_reset();
- }
++}
 +
 +
 +/* Host input
@@ -529,7 +246,7 @@ Index: src/kms.c
 +            Log_Printf(LOG_WARN, "[KMS] Host input: cannot type %02X", (uint8_t)c);
 +        }
 +    }
-+}
+ }
 +
 +static void kms_host_command(char *line) {
 +    char word[16], arg[16];
@@ -634,10 +351,8 @@ Index: src/kms.c
 +    (void)us;
 +#endif
 +}
-Index: src/scc.c
-===================================================================
---- src/scc.c	(revision 1864)
-+++ src/scc.c	(working copy)
+--- src/scc.c
++++ src/scc.c
 @@ -17,6 +17,8 @@
  #include "sysReg.h"
  #include "dma.h"
@@ -647,10 +362,13 @@ Index: src/scc.c
  
  #define LOG_SCC_LEVEL     LOG_DEBUG
  #define LOG_SCC_IO_LEVEL  LOG_DEBUG
-@@ -317,6 +319,213 @@
- }
+@@ -314,6 +316,213 @@
  
- 
+     set_interrupt(INT_SCC, RELEASE_INT);
+     CycInt_RemovePendingEvent(EVENT_SCC_IO);
++}
++
++
 +/* Host side of the serial ports.
 + *
 + * PREVIOUS_SCC_A_LOG / PREVIOUS_SCC_B_LOG name a file that receives every
@@ -855,12 +573,9 @@ Index: src/scc.c
 +    }
 +#endif
 +    CycInt_AddTimeEvent(SCC_HOST_POLL_US, 0, EVENT_SCC_HOST);
-+}
-+
-+
- /* Receive and send data */
- void scc_receive(int ch, uint8_t val) {
-     Log_Printf(LOG_SCC_IO_LEVEL,"[SCC] Channel %c: Receiving %02X\n", ch?'B':'A', val);
+ }
+ 
+ 
 @@ -338,7 +547,7 @@
          if (ch && ConfigureParams.Tablet.nTabletType) {
              tablet_receive(val);
@@ -879,17 +594,7 @@ Index: src/scc.c
      }
  }
  
-@@ -490,6 +699,9 @@
-         case WR0_RESETTXPEND:
-             scc_release_interrupt(ch?RR3_B_TXIP:RR3_A_TXIP);
-             break;
-+        case WR0_RESET_STAT:
-+            scc_release_interrupt(ch?RR3_B_STATIP:RR3_A_STATIP);
-+            break;
-             
-         default:
-             break;
-@@ -637,8 +849,17 @@
+@@ -640,8 +849,17 @@
  }
  
  void SCC_Reset(void) {
@@ -907,72 +612,3 @@ Index: src/scc.c
  }
  
  
-Index: src/timing.c
-===================================================================
---- src/timing.c	(revision 1864)
-+++ src/timing.c	(working copy)
-@@ -12,6 +12,8 @@
- 
- #ifdef __MINGW32__
- #include <unistd.h>
-+#include <string.h>
-+#include <stdlib.h>
- #define timegm _mkgmtime
- #endif
- #include <float.h>
-@@ -107,6 +109,15 @@
- 	*realTime = Timing_GetRealTime();
- }
- 
-+/*
-+ * PREVIOUS_FAST_FORWARD=N lets emulated time run up to N times as fast as
-+ * real time ("max": as fast as the host allows), measured over each sync
-+ * interval so that it can't catch up in bursts.  Without a limit, an idle
-+ * guest waiting for the network or for typing races far ahead.
-+ */
-+static double fastForward;
-+static uint64_t ffLastReal, ffLastHost;
-+
- void Timing_Sync(void) {
- 	int64_t realTimeOffset;
- 	uint64_t realTime, hostTime;
-@@ -114,6 +125,16 @@
- 	host_lock(&timeLock);
- 	saveTime = hostTime; /* save hostTime to be read by other threads */
- 	host_unlock(&timeLock);
-+	if (fastForward > 0) {
-+		double allowed = ffLastHost + (realTime - ffLastReal) * fastForward;
-+		if (hostTime > allowed && fastForward < DBL_MAX) {
-+			host_sleep_us((uint64_t)((hostTime - allowed) / fastForward));
-+			realTime = Timing_GetRealTime();
-+		}
-+		ffLastHost = hostTime;
-+		ffLastReal = realTime;
-+		return;
-+	}
- 	realTimeOffset = hostTime - realTime;
- 	if (realTimeOffset > 0) {
- 		host_sleep_us(realTimeOffset);
-@@ -281,6 +302,22 @@
- 	hardClockActual   = 0;
- 	enableRealtime    = ConfigureParams.System.bRealtime;
- 	osDarkmatter      = false;
-+	{
-+		/* Everything in the machine runs on emulated cycles, so it
-+		 * can run ahead of real time. */
-+		const char *ff = getenv("PREVIOUS_FAST_FORWARD");
-+		fastForward = 0;
-+		if (!enableRealtime && ff && *ff) {
-+			fastForward = strcmp(ff, "max") ? atof(ff) : DBL_MAX;
-+		}
-+		if (fastForward > 1) {
-+			Log_Printf(LOG_WARN, "Fast forward: up to %gx real time", fastForward);
-+		} else {
-+			fastForward = 0;
-+		}
-+		ffLastReal = 0;
-+		ffLastHost = 0;
-+	}
- 	saveTime          = 0;
- 	
- 	for (i = NUM_BLANKS; --i >= 0;) {

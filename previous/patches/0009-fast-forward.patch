@@ -1,0 +1,74 @@
+PREVIOUS_FAST_FORWARD: run faster than real time
+
+PREVIOUS_FAST_FORWARD=N lets emulated time run up to N times as fast as
+real time when the host keeps up ("max" for no limit).  The machine stays
+consistent with itself; only its clock runs ahead of the host's, so
+timings measured inside aren't a real NeXT's.
+
+--- src/timing.c
++++ src/timing.c
+@@ -12,6 +12,8 @@
+ 
+ #ifdef __MINGW32__
+ #include <unistd.h>
++#include <string.h>
++#include <stdlib.h>
+ #define timegm _mkgmtime
+ #endif
+ #include <float.h>
+@@ -107,6 +109,15 @@
+ 	*realTime = Timing_GetRealTime();
+ }
+ 
++/*
++ * PREVIOUS_FAST_FORWARD=N lets emulated time run up to N times as fast as
++ * real time ("max": as fast as the host allows), measured over each sync
++ * interval so that it can't catch up in bursts.  Without a limit, an idle
++ * guest waiting for the network or for typing races far ahead.
++ */
++static double fastForward;
++static uint64_t ffLastReal, ffLastHost;
++
+ void Timing_Sync(void) {
+ 	int64_t realTimeOffset;
+ 	uint64_t realTime, hostTime;
+@@ -114,6 +125,16 @@
+ 	host_lock(&timeLock);
+ 	saveTime = hostTime; /* save hostTime to be read by other threads */
+ 	host_unlock(&timeLock);
++	if (fastForward > 0) {
++		double allowed = ffLastHost + (realTime - ffLastReal) * fastForward;
++		if (hostTime > allowed && fastForward < DBL_MAX) {
++			host_sleep_us((uint64_t)((hostTime - allowed) / fastForward));
++			realTime = Timing_GetRealTime();
++		}
++		ffLastHost = hostTime;
++		ffLastReal = realTime;
++		return;
++	}
+ 	realTimeOffset = hostTime - realTime;
+ 	if (realTimeOffset > 0) {
+ 		host_sleep_us(realTimeOffset);
+@@ -281,6 +302,22 @@
+ 	hardClockActual   = 0;
+ 	enableRealtime    = ConfigureParams.System.bRealtime;
+ 	osDarkmatter      = false;
++	{
++		/* Everything in the machine runs on emulated cycles, so it
++		 * can run ahead of real time. */
++		const char *ff = getenv("PREVIOUS_FAST_FORWARD");
++		fastForward = 0;
++		if (!enableRealtime && ff && *ff) {
++			fastForward = strcmp(ff, "max") ? atof(ff) : DBL_MAX;
++		}
++		if (fastForward > 1) {
++			Log_Printf(LOG_WARN, "Fast forward: up to %gx real time", fastForward);
++		} else {
++			fastForward = 0;
++		}
++		ffLastReal = 0;
++		ffLastHost = 0;
++	}
+ 	saveTime          = 0;
+ 	
+ 	for (i = NUM_BLANKS; --i >= 0;) {

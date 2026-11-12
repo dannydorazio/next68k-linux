@@ -1,0 +1,20 @@
+SCC: release the external/status interrupt on its reset command
+
+WR0's "reset external/status interrupts" command didn't release a pending
+external/status interrupt, so one would stay asserted.  Needed for the
+serial break that 0006 sends for the kernel's magic SysRq.
+
+Upstream candidate.
+
+--- src/scc.c
++++ src/scc.c
+@@ -490,6 +490,9 @@
+         case WR0_RESETTXPEND:
+             scc_release_interrupt(ch?RR3_B_TXIP:RR3_A_TXIP);
+             break;
++        case WR0_RESET_STAT:
++            scc_release_interrupt(ch?RR3_B_STATIP:RR3_A_STATIP);
++            break;
+             
+         default:
+             break;

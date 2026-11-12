@@ -1,0 +1,38 @@
+CPU: _setjmp() and _longjmp() for the exception macros
+
+setjmp() and longjmp() also save and restore the signal mask, which on
+macOS costs system calls on every TRY; nothing in the CPU core changes
+the signal mask.
+
+--- src/cpu/mmu_common.h
++++ src/cpu/mmu_common.h
+@@ -25,15 +25,26 @@
+ #else
+ /* we are in plain C, just use a stack of long jumps */
+ #include <setjmp.h>
++/*
++ * setjmp() and longjmp() also save and restore the signal mask, which on
++ * macOS costs system calls every time; nothing here changes the signal mask.
++ */
++#if defined(__APPLE__) || defined(__unix__)
++#define uae_setjmp(b)		_setjmp(b)
++#define uae_longjmp(b, v)	_longjmp(b, v)
++#else
++#define uae_setjmp(b)		setjmp(b)
++#define uae_longjmp(b, v)	longjmp(b, v)
++#endif
+ extern jmp_buf __exbuf;
+ extern int     __exvalue;
+-#define TRY(DUMMY)       __exvalue=setjmp(__exbuf);       \
++#define TRY(DUMMY)       __exvalue=uae_setjmp(__exbuf);       \
+                   if (__exvalue==0) { __pushtry(&__exbuf);
+ #define CATCH(x)  __poptry(); } else {m68k_exception x=__exvalue; x=x;
+ #define ENDTRY    __poptry();}
+ #define STOPTRY   __poptry()
+-#define THROW(x) if (__is_catched()) {longjmp(__exbuf,x);}
+-#define THROW_AGAIN(var) if (__is_catched()) longjmp(*__poptry(),__exvalue)
++#define THROW(x) if (__is_catched()) {uae_longjmp(__exbuf,x);}
++#define THROW_AGAIN(var) if (__is_catched()) uae_longjmp(*__poptry(),__exvalue)
+ #define SAVE_EXCEPTION
+ #define RESTORE_EXCEPTION
+ jmp_buf* __poptry(void);

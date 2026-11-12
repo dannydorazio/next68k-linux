@@ -1,0 +1,9 @@
+0001-scc-reset-external-status-interrupt.patch -p0
+0002-esp-pio-data-out.patch -p0
+0003-m68040-locked-rmw-fault.patch -p0
+0004-ethernet-wire-speed.patch -p0
+0005-dimension-ordered-dram.patch -p0
+0006-host-interface.patch -p0
+0007-cpu-setjmp.patch -p0
+0008-idle-stop.patch -p0
+0009-fast-forward.patch -p0

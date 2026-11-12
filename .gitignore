@@ -15,3 +15,6 @@ __pycache__/
 
 # personal Claude Code settings
 /.claude/settings.local.json
+
+# macOS Finder metadata
+.DS_Store

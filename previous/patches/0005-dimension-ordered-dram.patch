@@ -1,0 +1,49 @@
+NeXTdimension: ordered DRAM accesses between the host and the i860
+
+The i860 runs in a thread of its own.  On a weakly ordered host (Apple
+Silicon) it could see the 68040's stores to the board's DRAM out of order,
+e.g. a command ring's index before the commands it announces.  Aligned
+word accesses are now release stores and acquire loads, ordered as on the
+NeXTBus.
+
+Upstream candidate.
+
+--- src/dimension/nd_mem.cpp
++++ src/dimension/nd_mem.cpp
+@@ -79,8 +79,19 @@
+ public:
+     ND_RAM(NextDimension* nd, int bank) : ND_Addrbank(nd), base(nd->ram), mask(nd->bankmask[bank]) {}
+ 
++    /*
++     * The host and the i860 thread share this memory, for instance a
++     * command ring and the index that says how far it's filled.  Their
++     * aligned word accesses are release stores and acquire loads, so
++     * that one sees the other's stores in order, as on the NeXTBus.
++     */
+     uint32_t lget(uint32_t addr) const {
+-        return do_get_mem_long(base + (addr & mask));
++        uint8_t* p = base + (addr & mask);
++        if (((uintptr_t)p & 3) == 0) {
++            uint32_t be = __atomic_load_n((uint32_t*)p, __ATOMIC_ACQUIRE);
++            return do_get_mem_long(&be);
++        }
++        return do_get_mem_long(p);
+     }
+ 
+     uint32_t wget(uint32_t addr) const {
+@@ -92,7 +103,14 @@
+     }
+ 
+     void lput(uint32_t addr, uint32_t l) const {
+-        do_put_mem_long(base + (addr & mask), l);
++        uint8_t* p = base + (addr & mask);
++        if (((uintptr_t)p & 3) == 0) {
++            uint32_t be;
++            do_put_mem_long(&be, l);
++            __atomic_store_n((uint32_t*)p, be, __ATOMIC_RELEASE);
++            return;
++        }
++        do_put_mem_long(p, l);
+     }
+ 
+     void wput(uint32_t addr, uint32_t w) const {

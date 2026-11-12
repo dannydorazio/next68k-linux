@@ -1,0 +1,69 @@
+Ethernet: received frames at 10 Mbit/s
+
+The receiver took a frame every 500 us, 2.4 times as fast as a real
+10 Mbit/s wire, which made the guest's interrupt latency budget tighter
+than real hardware's.  Wait, after each frame, as long as it would take
+on the wire with its preamble and the gap after it.
+
+Upstream candidate.
+
+--- src/ethernet.c
++++ src/ethernet.c
+@@ -312,6 +312,10 @@
+ /* Ethernet periodic check */
+ #define ENET_IO_DELAY   500     /* use 500 for NeXT hardware test, 20 for status test */
+ #define ENET_IO_SHORT   40      /* use 40 for 68030 hardware test */
++
++/* Microseconds a frame of len bytes (with CRC) takes on a 10 Mbit/s wire,
++ * with its preamble and the gap after it: the next can't come sooner. */
++#define ENET_WIRE_US(len)   (((len) + 8 + 12) * 8 / 10)
+ 
+ /* Ethernet states */
+ enum {
+@@ -322,6 +326,7 @@
+ static bool tx_done;
+ static bool rx_chain;
+ static int old_size;
++static int rx_wire_us;
+ static int en_state;
+ 
+ #define EN_DISCONNECTED    0
+@@ -524,6 +529,7 @@
+                 } else { /* done */
+                     Log_Printf(LOG_EN_LEVEL, "[EN] Receiving packet: Transfer complete.");
+                     rx_chain = false;
++                    rx_wire_us = ENET_WIRE_US(enet_rx_buffer.limit);
+                     enet_rx_interrupt(RXSTAT_PKT_OK);
+                     if (en_state == EN_LOOPBACK) { /* same for thin wire loopback? */
+                         enet_tx_interrupt(TXSTAT_TX_RECVD);
+@@ -686,6 +692,7 @@
+                     break; /* Loop in receiving state */
+                 } else { /* done */
+                     Log_Printf(LOG_EN_LEVEL, "[EN] Receiving packet: Transfer complete.");
++                    rx_wire_us = ENET_WIRE_US(enet_rx_buffer.limit);
+                     enet_rx_interrupt(RXSTAT_PKT_OK);
+                     if (en_state == EN_LOOPBACK) {
+                         enet_tx_interrupt(TXSTAT_TX_RECVD);
+@@ -726,6 +733,8 @@
+ }
+ 
+ void Ethernet_IO_Handler(void) {
++    int delay;
++
+     if (enet.reset&EN_RESET) {
+         Log_Printf(LOG_WARN, "Stopping Ethernet Transmitter/Receiver");
+         /* Stop SLIRP/PCAP */
+@@ -741,7 +750,12 @@
+         enet_io();
+     }
+     
+-    CycInt_UpdateTimeEvent(receiver_state==RECV_STATE_WAITING?ENET_IO_DELAY:ENET_IO_SHORT, 0, EVENT_ETHERNET_IO);
++    delay = receiver_state==RECV_STATE_WAITING?ENET_IO_DELAY:ENET_IO_SHORT;
++    if (rx_wire_us > delay) {
++        delay = rx_wire_us; /* until the frame just received has gone by */
++    }
++    rx_wire_us = 0;
++    CycInt_UpdateTimeEvent(delay, 0, EVENT_ETHERNET_IO);
+ }
+ 
+ void enet_reset(void) {

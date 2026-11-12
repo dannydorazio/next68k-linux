@@ -28,4 +28,4 @@ board (see `docs/hardware.md`).
 
 The 68040 and the i860 share the ring. In Previous the i860 runs in its
 own thread, so the shared memory needs ordered accesses; Previous's patch
-(`previous/previous-linux.patch`, `nd_mem.cpp`) makes them so.
+(`previous/patches/0005-dimension-ordered-dram.patch`) makes them so.

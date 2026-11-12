@@ -1,7 +1,7 @@
 #!/bin/sh
 # Type on the emulated NeXT's keyboard, or work its mouse: each argument is
 # a command for Previous's host input (PREVIOUS_INPUT, the FIFO out/input
-# made by run-previous.sh), as described in previous/previous-linux.patch
+# made by run-previous.sh), as described in previous/patches/0006-host-interface.patch
 # (kms.c):
 #
 #   type TEXT          US layout; \n is Return, \t Tab, \e Esc, \b Delete

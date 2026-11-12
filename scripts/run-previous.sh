@@ -31,7 +31,7 @@
 # runs ahead of the host's.  The limit keeps that sane for typing and for
 # the network.
 #
-# Needs a Previous built with previous/previous-linux.patch.
+# Needs a Previous built with previous/patches (docs/setup.md).
 set -e
 
 color=FALSE

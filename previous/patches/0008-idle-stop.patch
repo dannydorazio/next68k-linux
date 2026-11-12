@@ -1,0 +1,76 @@
+Skip the time a stopped CPU waits to the next event
+
+A CPU stopped by STOP only waits for an interrupt, which only an event
+can bring: advance straight to the next event instead of executing STOP
+every few cycles.  An idle Linux spends most of its time there.
+
+--- src/cpu/newcpu.c
++++ src/cpu/newcpu.c
+@@ -5138,19 +5138,32 @@
+ static inline void run_other_MPUs(void)
+ {
+ 	static int ndCycles = 0;
++	int cycles = cpu_cycles;
+ 
+-	ndCycles += cpu_cycles;
++	/*
++	 * A stopped CPU (STOP) only waits for an interrupt, which only an
++	 * event can bring: go straight to the next one instead of executing
++	 * STOP again every few cycles.
++	 */
++	if (regs.stopped) {
++		uint64_t idle = CycInt_CyclesToNextEvent();
++		if (idle > (uint64_t)cycles) {
++			cycles = idle > 0x10000000 ? 0x10000000 : (int)idle;
++		}
++	}
++
++	ndCycles += cycles;
+ 	// bundle some 68k cycles for MPUs
+ #if ENABLE_DSP_EMU
+ 	if(dsp_core.running)
+-		DSP_Run(cpu_cycles);
++		DSP_Run(cycles);
+ #endif
+ 	if(ndCycles > 100) {
+ 		i860_Run(ndCycles);
+ 		ndCycles = 0;
+ 	}
+ 
+-	M68000_AddCycles(cpu_cycles);
++	M68000_AddCycles(cycles);
+ }
+ 
+ static int do_specialties (int cycles)
+--- src/cycInt.c
++++ src/cycInt.c
+@@ -146,6 +146,19 @@
+ 
+ /*-----------------------------------------------------------------------*/
+ /**
++ * Cycles until the next event is due (0 if one is due already).
++ */
++uint64_t CycInt_CyclesToNextEvent(void) {
++	uint64_t next = EventList[nCyclesFirst].time;
++
++	if (nCheckCycles < next) {
++		next = nCheckCycles;
++	}
++	return next > nCyclesMainCounter ? next - nCyclesMainCounter : 0;
++}
++
++/*-----------------------------------------------------------------------*/
++/**
+  * Add event to the queue.
+  */
+ static inline event_id CycInt_AddEvent(event_id first, event_id i) {
+--- src/includes/cycInt.h
++++ src/includes/cycInt.h
+@@ -44,6 +44,7 @@
+ 
+ extern void CycInt_Reset(void);
+ extern void CycInt_AddCycles(int Cycles);
++extern uint64_t CycInt_CyclesToNextEvent(void);
+ extern void CycInt_AddCyclesEvent(uint64_t Cycles, event_id i);
+ extern void CycInt_UpdateCyclesEvent(uint64_t Cycles, event_id i);
+ extern void CycInt_AddTimeEvent(uint64_t RealTime, uint64_t FastTime, event_id i);

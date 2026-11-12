@@ -50,7 +50,8 @@ branch of https://github.com/dannydorazio/linux (`arch/m68k/next/`,
 | `tests/drmtest.c` | Shows a test image through the DRM API (`xrgb`, `rgb565`, or `c2`/`c4` with a palette); statically linked, copied to the NeXT over HTTP |
 | `tests/scrollbench.sh` | Times how fast the framebuffer console scrolls, with full-width and short lines |
 | `tests/forkabrt.c`, `tests/rwlock.c` | glibc tests for the Debian root: `fork()` then `sigaction(SIGABRT)`, rwlocks and the cached TID |
-| `previous/previous-linux.patch` | Previous patches: SCC to host (`PREVIOUS_SCC_A_PTY`, `PREVIOUS_SCC_A_LOG`, same for B), serial break on SIGUSR1, NMI on SIGUSR2, a screenshot on SIGHUP (`PREVIOUS_SCREENSHOT`), keyboard and mouse input from a FIFO (`PREVIOUS_INPUT`), received Ethernet frames spaced at 10 Mbit/s, ordered NeXTdimension DRAM accesses for its i860 thread, ESP PIO data-out and bus-service status, 68040 locked RMW (`cas`) fault frames, and speed: fast-forward (`PREVIOUS_FAST_FORWARD`), idle `stop` skipping, `_setjmp` in the CPU core |
+| `previous/patches/` | Previous patches, one per change, applied in the order of `series` (`previous/README.md` lists them): SCC, ESP and 68040 MMU fixes, Ethernet frames at wire speed, ordered NeXTdimension memory, the host interface the scripts use (serial ports on ptys and logs, break, NMI and screenshot on signals, keyboard and mouse input from a FIFO), and speed (`_setjmp`, idle `stop` skipping, fast-forward) |
+| `previous/patches.py` | Applies the series to Previous (`apply`), or rewrites one patch from a changed Previous tree (`refresh NAME`) |
 | `previous/previous.cfg.in` | Previous configuration template, which `run-previous.sh` fills in for the machine chosen: `out/disk.img` as SCSI target 0, boot from Ethernet or the disk, and an optional NeXTdimension |
 
 ## Quick start
@@ -66,7 +67,7 @@ mkdir -p out/downloads/busybox && (cd out/downloads/busybox && curl -O \
 ./scripts/build-disk.sh             # SCSI disk image, attached as target 0
 
 ./scripts/build-image.sh            # loader + kernel + initramfs
-./scripts/run-previous.sh &         # needs Previous built with previous/previous-linux.patch
+./scripts/run-previous.sh &         # needs Previous with previous/patches (docs/setup.md)
 ./scripts/console.py                # root shell on the first serial port
 ```
 
@@ -242,8 +243,8 @@ hardware. See `ROADMAP.md` for what's next.
 ## License
 
 Everything in this tree is GPL-2.0 (`LICENSE`), like the kernel; the
-loader and most tests also say so in SPDX tags. `previous/previous-linux.patch` is a
-patch to Previous and is GPL-2 like it. NetBSD's next68k port, NeXT's
+loader and most tests also say so in SPDX tags. The patches in `previous/patches/`
+change Previous and are GPL-2 like it. NetBSD's next68k port, NeXT's
 NeXTdimension sources and Previous were used as references, not copied:
 `ROADMAP.md` (Done, step 17) says what each one's license means here and
 where the facts taken from NeXT's sources are now cited from.

@@ -653,7 +653,7 @@ NCR 53C90, 64 MB).
     20 MB to between 0 and 2.
   - Previous delivered a received frame every 500 µs, 2.4 times as fast
     as a real 10 Mbit/s wire. It now spaces them at wire speed
-    (`previous-linux.patch`, `ethernet.c`).
+    (`previous/patches/0004-ethernet-wire-speed.patch`).
   - The slow Turbo downloads of step 10 (270 KB/s) were a measurement
     artifact. Under fast-forward, an idle guest's clock races ahead while
     Previous's network runs on host time. In real time (`FAST=0`) a 20 MB
@@ -728,7 +728,7 @@ screenshots.
   - When a DRM client gives the screen back, the console is redrawn
     (`fb_restore`, then `fb_set_var_from_user()`). If the i860 takes no
     command for 10 seconds, it's stopped and the CPU draws.
-- **Previous** (`previous-linux.patch`):
+- **Previous** (`previous/patches/`):
   - Previous runs the i860 in a thread of its own. On the Apple Silicon
     host, it could see the ring's head index before the commands the
     index announced, and then misread the ring. The board's DRAM now has
@@ -786,8 +786,8 @@ taken from NeXT's sources now come from.
     emulates paging).
   - `../NeXTDimension` stays a local reference only: nothing submitted
     upstream should cite it.
-- **Previous** is GPL-2 (`../trunk/gpl.txt`); `previous/previous-linux.patch`
-  is under the same license. The NeXT ROMs in its tree are Apple's and are
+- **Previous** is GPL-2 (`../trunk/gpl.txt`); the patches in
+  `previous/patches/` are under the same license. The NeXT ROMs in its tree are Apple's and are
   not redistributed here.
 - **Debian, BusyBox, i860 binutils** are only downloaded into `out/`. A
   published `out/disk.img` would carry the GPL's source obligations for
@@ -824,7 +824,14 @@ taken from NeXT's sources now come from.
   - `drmtest.c`: a DRM test image in each format;
   - `scrollbench.sh`: framebuffer console scrolling speed.
 
-### Previous patches (`previous/previous-linux.patch`)
+### Previous patches (`previous/patches/`)
+
+Since 2026-11-12 a series of one patch per change, applied in order by
+`previous/patches.py apply` and kept up to date with `patches.py refresh`;
+`previous/README.md` lists them and which could go upstream. Before that
+they were one combined `previous-linux.patch`; split, the series rebuilds
+the same tree. What the patches do:
+
 
 - The SCC is connected to the host: `PREVIOUS_SCC_A_PTY` gives a pseudo
   terminal and `PREVIOUS_SCC_A_LOG` a transcript.
@@ -832,8 +839,8 @@ taken from NeXT's sources now come from.
   emulator; implemented.
 - ESP non-DMA data-in did not set the bus-service interrupt status; fixed.
 - SIGUSR1 sends a break on SCC channel A, for magic SysRq
-  (`scripts/sysrq.sh`); ext/status interrupts and their reset are emulated
-  for it.
+  (`scripts/sysrq.sh`); ext/status interrupts are emulated for it, and the
+  reset command now releases them (a fix of its own, `0001`).
 - 68040 MMU: a fault on the read cycle of a locked RMW (`cas`, `tas`) no
   longer reports a pending writeback (see Done, step 7).
 - SIGUSR2 raises an NMI (`scripts/nmi.sh`).
@@ -949,7 +956,8 @@ and the reboot path.
   `pmac_zilog`, SCSI, partitions, Ethernet), add a MAINTAINERS entry, and
   post to linux-m68k. The human submitter adds `Signed-off-by` and notes the
   AI assistance (`Documentation/process/coding-assistants.rst`).
-- **Previous:** send the SCC, ESP and 68040 locked-RMW patches upstream
+- **Previous:** send the fixes upstream (`previous/README.md` says which),
+  starting with the SCC, ESP and 68040 locked-RMW patches,
   and report the NFS TCP bug. The locked-RMW fault frame code comes from
   WinUAE, so check whether WinUAE has the same bug.
 - **Debian:** once it's upstream, `CONFIG_NEXT` in Debian's m68k kernel.
