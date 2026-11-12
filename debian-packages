@@ -1,0 +1,5 @@
+# Extra Debian packages for the NeXT root file system, one per line.
+# build-debian.sh installs them on the host (under qemu-user), which is
+# much faster than apt on the emulated 25 MHz machine.
+strace
+fastfetch

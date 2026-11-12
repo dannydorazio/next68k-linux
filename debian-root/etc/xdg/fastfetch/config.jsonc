@@ -1,0 +1,63 @@
+// fastfetch on the NeXT.  fastfetch finds the host model and CPU through
+// DMI or the device tree, which m68k doesn't have; m68k Linux has them in
+// /proc/hardware and /proc/cpuinfo instead.
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "modules": [
+    "title",
+    "separator",
+    "os",
+    {
+      "type": "command",
+      "key": "Host",
+      "text": "m=$(sed -n 's/^Model:[[:space:]]*//p' /proc/hardware); r=$(sed -n 's/^Board Revision:[[:space:]]*//p' /proc/hardware); echo \"$m${r:+ (board revision $r)}\""
+    },
+    "kernel",
+    "uptime",
+    "packages",
+    "shell",
+    "terminal",
+    {
+      "type": "command",
+      "key": "CPU",
+      "text": "c=$(sed -n 's/^CPU:[[:space:]]*//p' /proc/cpuinfo); f=$(sed -n 's/^CPU Clock:[[:space:]]*//p' /proc/hardware); echo \"Motorola $c${f:+ @ $f}\""
+    },
+    {
+      "type": "command",
+      "key": "FPU",
+      "text": "f=$(sed -n 's/^FPU:[[:space:]]*//p' /proc/cpuinfo); c=$(sed -n 's/^CPU:[[:space:]]*//p' /proc/cpuinfo); [ \"$f\" = \"$c\" ] && echo \"$f (built in)\" || echo \"$f\""
+    },
+    {
+      "type": "command",
+      "key": "DSP",
+      "text": "grep -q DSP56001 /proc/hardware && echo 'Motorola DSP56001'"
+    },
+    {
+      "type": "command",
+      "key": "Display",
+      "text": "sed -n 's/^Display:[[:space:]]*//p' /proc/hardware"
+    },
+    "memory",
+    "swap",
+    "disk",
+    {
+      "type": "command",
+      "key": "SCSI",
+      "text": "sed -n 's/^[[:space:]]*SCSI controller //p' /proc/hardware"
+    },
+    {
+      "type": "command",
+      "key": "Ethernet",
+      "text": "e=$(sed -n 's/^Ethernet:[[:space:]]*//p' /proc/hardware); echo \"Fujitsu MB8795${e:+, $e}\""
+    },
+    "localip",
+    {
+      "type": "command",
+      "key": "Clock chip",
+      "text": "sed -n 's/^[[:space:]]*Clock chip //p' /proc/hardware"
+    },
+    "locale",
+    "break",
+    "colors"
+  ]
+}

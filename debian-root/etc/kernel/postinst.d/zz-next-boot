@@ -1,0 +1,91 @@
+#!/usr/bin/perl
+# Copy a newly installed kernel (and its initrd, if there is one) into the
+# NeXT disk's boot partition, where the loader in the disk's boot blocks
+# reads it from: the partition of type "boot" in the NeXT disk label.  The
+# command line comes from /etc/kernel/cmdline, or else is the running
+# kernel's.  The partition's format is struct bootpart in the loader
+# (next68k-linux/loader/loader.h).
+#
+# Run by the kernel packages as: zz-next-boot VERSION IMAGE
+# By hand, e.g.:  /etc/kernel/postinst.d/zz-next-boot $(uname -r) /boot/vmlinuz-$(uname -r)
+use strict;
+use warnings;
+use IO::Handle;
+
+my ($version, $image) = @ARGV;
+$image //= "/boot/vmlinuz-$version" if defined $version;
+die "usage: $0 VERSION [IMAGE]\n" unless defined $image;
+
+# Find a disk whose NeXT label has a boot partition.
+my ($dev, $size);
+for my $disk (glob("/dev/sd[a-z]")) {
+	open(my $d, "<:raw", $disk) or next;
+	read($d, my $label, 8192) == 8192 or next;
+	close($d);
+	next unless substr($label, 0, 4) eq "dlV3";
+	my $secsize = unpack("N", substr($label, 92, 4));
+	for my $i (0 .. 7) {
+		my $p = substr($label, 190 + $i * 46, 46);
+		my ($off, $nsect) = unpack("l>l>", $p);
+		my $type = unpack("Z8", substr($p, 37, 8));
+		next unless $nsect > 0 && $type eq "boot";
+		($dev, $size) = ($disk . ($i + 1), $nsect * $secsize);
+		last;
+	}
+	last if $dev;
+}
+unless ($dev) {
+	print STDERR "zz-next-boot: no NeXT boot partition; not installing $image\n";
+	exit 0;
+}
+
+sub slurp {
+	my ($path) = @_;
+	open(my $f, "<:raw", $path) or die "zz-next-boot: $path: $!\n";
+	local $/;
+	return scalar <$f>;
+}
+
+my $kernel = slurp($image);
+die "zz-next-boot: $image is not an ELF file\n"
+	unless substr($kernel, 0, 4) eq "\x7fELF";
+my $initrd = "";
+$initrd = slurp("/boot/initrd.img-$version")
+	if defined $version && -e "/boot/initrd.img-$version";
+
+my $cmdline;
+if (-e "/etc/kernel/cmdline") {
+	$cmdline = slurp("/etc/kernel/cmdline");
+} else {
+	$cmdline = slurp("/proc/cmdline");
+	$cmdline =~ s/\bBOOT_IMAGE=\S+\s*//;
+}
+$cmdline =~ s/\s+$//;
+$cmdline =~ s/\s+/ /g;
+die "zz-next-boot: command line too long\n" if length($cmdline) >= 256;
+
+my $kernel_offset = 4096;
+my $initrd_offset = length($initrd) ?
+	($kernel_offset + length($kernel) + 4095) & ~4095 : 0;
+my $end = $initrd_offset ? $initrd_offset + length($initrd) :
+	$kernel_offset + length($kernel);
+die "zz-next-boot: $dev holds $size bytes, the kernel needs $end\n"
+	if $end > $size;
+
+# The header goes last, so a half-written kernel never looks bootable.
+my $header = pack("N5 a256", 0x4e58424b, $kernel_offset, length($kernel),
+		  $initrd_offset, length($initrd), $cmdline);
+sub put {
+	my ($fh, $pos, $data) = @_;
+	seek($fh, $pos, 0) && print $fh $data or die "zz-next-boot: writing $dev: $!\n";
+}
+open(my $out, "+<:raw", $dev) or die "zz-next-boot: $dev: $!\n";
+put($out, 0, "\0" x $kernel_offset);
+put($out, $kernel_offset, $kernel);
+put($out, $initrd_offset, $initrd) if length($initrd);
+$out->flush && $out->sync or die "zz-next-boot: writing $dev: $!\n";
+put($out, 0, $header);
+$out->flush && $out->sync or die "zz-next-boot: writing $dev: $!\n";
+close($out) or die "zz-next-boot: writing $dev: $!\n";
+print "zz-next-boot: $image", (length($initrd) ? " and its initrd" : ""),
+	" written to $dev\n";

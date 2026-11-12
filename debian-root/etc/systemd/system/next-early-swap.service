@@ -1,0 +1,18 @@
+# Turn swap on before udev starts.  On a 32 MB NeXTstation, booting without
+# swap runs out of memory and pages program text in and out, which slows
+# udev's coldplug so much that the swap partition's device unit times out
+# and swap never comes on.  The kernel's devtmpfs already has the
+# partition's node, so swapon doesn't have to wait for udev; systemd's own
+# swap unit later finds it on.
+[Unit]
+Description=Early swap
+DefaultDependencies=no
+Before=sysinit.target swap.target systemd-udevd.service systemd-udev-trigger.service
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/swapon --all --ifexists
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target
