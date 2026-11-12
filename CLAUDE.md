@@ -75,6 +75,7 @@ python3 scripts/serial-run.py --login "uname -a" "dmesg | tail"
 python3 previous/patches.py refresh NAME # after changing Previous: rewrite that patch from ../trunk (a new NAME adds one)
 make -C ../trunk/build                    # rebuild Previous
 ./nd-firmware/build.sh                    # after changing ndfw.s
+./scripts/build-xdriver.sh                # NeXTdimension X driver + tests/xbench into out/xdriver
 ```
 
 Check the end of `build-kernel.sh`'s output, not just for `error:`: a
@@ -93,6 +94,9 @@ failed link (an `undefined reference`) leaves the old `vmlinux`, which
 - **`login` gives up after 300 emulated seconds**, which fast-forward
   turns into about 40 real ones, and the 68030 needs longer than that while
   it's still booting.
+- **Spotlight opens `out/disk.img`** for a few seconds after Previous has
+  written it (`mdworker_shared` in `lsof`), and `run-previous.sh` then
+  refuses to start: wait for it rather than stopping it.
 - **`out/serial-a.log` is cleared when Previous starts**: anything that
   waits on it right after a start may see the previous run's lines.
   `serial-run.py` without `--login` types into a login prompt.

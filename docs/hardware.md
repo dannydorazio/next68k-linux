@@ -158,8 +158,10 @@ A cube's NeXTBus board with an i860 XR at 33 MHz, its own DRAM (up to
   unknown: a read that bus errors counts as empty.
 - **Slot space** (`0xFn000000` plus):
   - the memory controller at `+0x800000`. CSR0 bit 0 restarts the i860,
-    bit 3 interrupts it, and bit 2 is the i860's interrupt enable. CSR1
-    bit 0 interrupts the host. Writing 1 at `+0x2000` unblanks the display.
+    bit 1 is its `CS8` pin (boot from the 8-bit ROM; set at power-on, so
+    keep it set when restarting), bit 3 interrupts it, and bit 2 is the
+    i860's interrupt enable. CSR1 bit 0 interrupts the host. Writing 1 at
+    `+0x2000` unblanks the display.
   - the Bt463 RAMDAC at `+0x200000`: address low and high at 0 and 4, a
     control register at 8, the palette at `0xC`.
 - **The i860's own view:** DRAM at `0xF8000000` and video memory at
@@ -168,10 +170,20 @@ A cube's NeXTBus board with an i860 XR at 33 MHz, its own DRAM (up to
   little-endian, a doubleword at a time. The host stores each instruction
   word at its address XOR 4.
 - **Boot** (by experiment in Previous, which runs the board's ROM image):
-  after a restart, the ROM sets the board up and waits for the host's
-  interrupt, then jumps to the start of DRAM with paging off. Previous
-  doesn't emulate the i860's caches, so whether the ROM leaves them on is
-  unknown; check before trusting the shared ring on a real board.
+  after a restart, the ROM tests the start of DRAM, writes CSR0 several
+  times and sets the i860's interrupt enable (bit 2) last, then waits for
+  the host's interrupt. Only then can the host load a program and set
+  `INT860`: an interrupt sent earlier is lost when the ROM next writes
+  CSR0. On the interrupt the ROM clears CSR0 bit 12 (Previous's
+  `i860_CACHE_EN`) and the interrupt enable, and jumps to the start of
+  DRAM with paging off. Previous doesn't emulate the i860's caches, so
+  whether they're really off is unconfirmed; check before trusting the
+  shared ring on a real board.
+- **Pixels and X:** the video memory's 0xRRGGBBXX is an order Render has
+  no format for (it knows ARGB, ABGR and BGRA), so X can't draw there
+  directly without losing Render and Xft. Our X driver keeps X's
+  framebuffer in the board's DRAM in XRGB and has the i860 copy it over
+  (`xorg-nextdimension/`).
 - **Bt463 RAMDAC** (Brooktree's data sheet, in the 1993 Graphics and
   Imaging Product Databook on bitsavers and archive.org; Linux's `tgafb`
   drives the same chip): command register 0 = `0x40` is 4:1 multiplexing,

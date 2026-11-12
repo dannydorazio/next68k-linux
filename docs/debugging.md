@@ -81,3 +81,19 @@ regenerating the patch check with `svn diff` that none is left.
   was the cue for the ordered accesses in the patch.
 - Previous has an i860 debugger (`nd_start_debugger()`), which this project
   hasn't needed yet.
+- X's driver logs to `/var/log/Xorg.0.log`: `the i860 fills, copies and
+  draws text` when it draws with the i860, a warning when it doesn't, and
+  `the i860 stopped at command` if the i860 stops taking commands (X then
+  draws with the CPU). `Option "Accel" "false"` in a Device section for
+  it turns the i860 off, to tell its drawing from X's.
+- `tests/xbench.c` (`DISPLAY=:0 XAUTHORITY=$(ls
+  /var/lib/xdm/authdir/authfiles/A:0-*) xbench`) times X's common
+  operations; `XBENCH_HOLD=60` leaves its windows up for a screenshot.
+- `PREVIOUS_I860_STATS=1` in the environment of `run-previous.sh` makes
+  Previous print how many cycles a second the i860 ran, to
+  `out/previous-stdout.log` (counting its idle loop too).
+- What the ROM and the driver do at a restart showed up with temporary
+  logging in Previous: CSR0 writes from either side (`MC::write` in
+  `nd_devs.cpp`), the i860's writes to DRAM (`ND_RAM::lput`) and the
+  i860's jumps (`run_cycle` in `i860.cpp`), into a file named by an
+  environment variable. See ROADMAP.md, Done, step 20.

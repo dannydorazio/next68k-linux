@@ -7,7 +7,7 @@ work upstream.
 Kernel work lives on the `next68k` branch of `../linux` (uncommitted so far);
 tooling in this directory; emulator patches in `previous/`.
 
-## Where things stand (2026-11-11)
+## Where things stand (2026-11-12)
 
 - Part 1, steps 1–5: done. Step 6: done except the overnight soak, which
   is postponed (run `scripts/soak-server.sh` on the host and
@@ -21,19 +21,29 @@ tooling in this directory; emulator patches in `previous/`.
   FIFO added to Previous.
 - Part 2, step 10.6 (NeXTdimension): done (Done, step 16). A DRM driver
   for the board's 32-bit display, whose console the board's i860 draws
-  with our own firmware: scrolling is a copy on the board.
+  with our own firmware.
 - NeXTdimension in `/proc/hardware` and fastfetch (Done, step 18): the
   board's slot, processor (from the i860's EPSR), memory (sized at boot)
-  and display. The i860 doesn't start after a warm reboot: see Open issues.
+  and display.
+- NeXTdimension, X drawn by the i860 (Done, step 20): an X driver
+  (`xorg-nextdimension/`) keeps X's framebuffer and pixmaps in the board's
+  memory, where the i860 fills, copies and draws text, and copies the
+  changes to the screen: fills, scrolls and window moves 12 to 120 times
+  faster than with modesetting, text about 3 times; images hardly, since
+  the 68040 still has to send them. The i860 now starts after
+  a warm reboot too (the driver interrupted the ROM before it was ready);
+  the console scrolls by copying on the board; Previous can run the i860
+  faster (`I860=`); boards in slots 4 and 6 work.
 - X and WindowMaker (Done, step 19): xdm on the screen, WindowMaker as
   the session, installed on the host into `out/disk.img`
   (`scripts/install-packages.sh`). Tested on the NeXTcube Turbo with a
-  NeXTdimension at `FAST=0`.
+  NeXTdimension at `FAST=0`, now with the board's own X driver.
 - Licensing (Done, step 17): this tree is GPL-2.0 (`LICENSE`). The
   NeXTdimension facts first read in NeXT's unlicensed, confidential
   sources are now cited from the Bt463 data sheet, `tgafb` and experiment
   in Previous. Still unconfirmed by any public source: sync on green, and
-  whether the ROM leaves the i860's caches on.
+  whether the ROM leaves the i860's caches on (step 20 found it clearing
+  the board's cache enable before it jumps to our program).
 - Part 2, step 10.5 (polish in the emulator): done (Done, step 15). The
   run script had given every machine the wrong SCSI chip and the Turbos the
   wrong clock; the Ethernet driver recovers the frames it used to drop; an
@@ -76,23 +86,34 @@ Known problems and loose ends, newest first. Each says where it was found;
 when one is fixed, move what was learned into that step's Done section and
 delete it here.
 
-- **NeXTdimension: the i860 doesn't start after a warm reboot.** After
-  `systemctl reboot` the driver waits out its timeout (logged 100 s into
-  the boot, though the limit is 10 s of 1-2 ms sleeps: why it takes ten
-  times longer is part of the question), logs
-  `the i860 didn't start (-110)` and draws with the CPU, so the console is
-  slow and `/proc/hardware` shows a plain `i860`. A fresh start of
-  Previous is fine. Only the 68040 is reset on a reboot: the i860 is still
-  in our firmware from the last boot when the driver writes the CSR0 reset
-  bit. Things to check: whether Previous's CSR0 reset (`nd_devs.cpp`) puts
-  the i860 back into its ROM as on power-on, what state the ROM expects
-  (interrupt bits left set in CSR0 or CSR1?), and whether a real board
-  behaves the same. Not caused by step 18's memory probe, but not yet
-  checked with a kernel from before it. Found in step 18.
+- **NeXTdimension's X driver, what the i860 doesn't do yet** (step 20):
+  core (non-Render) text and images go through the CPU: the 68040 copies
+  a 256x256 image in 116 ms, most of it sending it to X. Render beyond
+  text (Over with an image source, gradients, transforms) falls back to
+  the CPU on the board's uncached memory. MIT-SHM isn't tried. With 4 MB
+  banks X gets only 456 KB of the board's memory for pixmaps. The driver
+  must be built against the X server on the disk (`build-xdriver.sh`
+  prints its version), or X falls back to modesetting.
+- **Console scrolling is bound by the 68040, not the i860** (step 20):
+  fbcon's `SCROLL_MOVE` copies only the runs of characters that changed,
+  row by row, comparing every cell: about 12 ms a line at 33 MHz. One
+  copy of the whole screen per line would take a change to fbcon (it only
+  copies the whole screen when it can pan, which the board can't).
+- **While the command ring is full, the CPU spins** (step 16): the
+  console can't sleep; X waits with `usleep`. Since step 20 the console's
+  scrolling rarely fills the 64 KB ring.
 - **NeXTdimension, unconfirmed on real hardware:** sync on green (`0x203`
-  = `0x80`), whether the ROM leaves the i860's caches on (which would break
-  the shared ring), and how a bank of DRAM that isn't there answers the
-  memory probe. Steps 17 and 18.
+  = `0x80`); whether the ROM leaves the i860's caches on (in Previous it
+  clears CSR0 bit 12, which Previous calls `i860_CACHE_EN`, before it
+  jumps to our program, but Previous doesn't emulate the caches); how a
+  bank of DRAM that isn't there answers the memory probe; that the ROM
+  sets CSR0's i860 interrupt enable last before it waits (the driver
+  waits for that); whether the 68040 may use `move16` on the board's
+  uncached memory (glibc's `memcpy` doesn't). Steps 17, 18 and 20.
+- **Spotlight opens `out/disk.img`** after Previous has written it, for a
+  few seconds, and `run-previous.sh` refuses to start meanwhile. Wait, or
+  keep `out/` out of Spotlight (System Settings, Spotlight, Search
+  Privacy). Seen in step 20.
 - **Overnight soak test** postponed: `scripts/soak-server.sh` on the host,
   `tests/soak.sh` on the NeXT, at `FAST=0`. Part 1, step 6.
 - **Full Debian upgrade:** retry `apt-get update && apt-get -y
@@ -923,6 +944,117 @@ taken from NeXT's sources now come from.
   format the mono driver converts: XRGB8888 is offered), the 25 MHz
   machines, the 68030.
 
+### 20. NeXTdimension: warm reboot, X drawn by the i860, a faster i860
+
+- **Warm reboot.** The i860 didn't start after `systemctl reboot`, and
+  sometimes not after a cold start either. Traced in Previous (a
+  temporary log of CSR0 writes, the i860's DRAM writes and its jumps):
+  - after the driver's reset, the ROM tests the start of DRAM (patterns
+    such as `db6db6db`) and writes CSR0 several times, setting the i860's
+    interrupt enable (bit 2) last, then waits for the interrupt;
+  - the driver loaded the program and set `INT860` right away: the ROM's
+    test could overwrite the program, and its next CSR0 write cleared
+    `INT860`, so it waited for an interrupt that had come and gone. A
+    fresh start of Previous only worked because the ROM was usually ready
+    by the time the driver got there;
+  - the reset write also cleared CSR0's `CS8` bit (bit 1), the i860's pin
+    for booting from its 8-bit ROM, which Previous ignores but a real
+    board wouldn't;
+  - the driver now writes `CS8 | RESET`, waits for the interrupt enable,
+    then loads the program and interrupts the i860 (`readx_poll_timeout`).
+    The ROM clears CSR0 bit 12, which Previous calls `i860_CACHE_EN`,
+    before it jumps;
+  - the timeout took 100 s instead of 10: with `HZ=100` and no
+    high-resolution timers, each `usleep_range(1000, 2000)` slept a whole
+    10 ms tick. `readx_poll_timeout` counts real time.
+  - Tested: cold boots at `FAST=0` and `FAST=8`, and three warm reboots in
+    a row with boards in slots 2 and 4: all 8 starts logged `i860
+    console`, in about 1 s.
+- **Console scrolling.** fbcon only scrolls with copies when imageblit
+  isn't accelerated (`fast_copyarea && !fast_imageblit` in
+  `updatescrollmode()`), and the driver said it was, so every scroll had
+  redrawn each changed character from the CPU. Without
+  `FBINFO_HWACCEL_IMAGEBLIT` (the i860 still draws the glyphs), fbcon
+  copies on the board. 500 short lines took 10.6 s at `FAST=0` before,
+  6.1 s after (with `I860=max`). What's left is fbcon walking every cell
+  on the 68040 (Open issues).
+- **Firmware** (`nd-firmware/ndfw.s`, 452 words):
+  - fills and copies of whole quads go four at a time, four loads before
+    the four stores, so overlapping copies stay right in both directions;
+  - commands for X, with the i860's addresses and each surface's pitch:
+    `FILLP`, `COPYP` and `PRESENT` (X's 0xXXRRGGBB to the screen's
+    0xRRGGBBXX, a byte shift per pixel), and for Render's text `FILL8`,
+    `ADD8` (bytes, saturating) and `OVERMASK` (a premultiplied color over
+    32-bit pixels through an 8-bit mask);
+  - the i860 has no integer multiply, so the program builds a 64 KB table
+    of a·b/255 at DRAM offset 0x20000 before it's READY, rounding down:
+    (x + 1 + x/256)/256 is exact for every product, and rounding down
+    keeps Over's sums within 255 for premultiplied colors (both checked
+    over all values in Python).
+- **Kernel:**
+  - the DRAM resource is now the board's whole DRAM space (4 × 16 MB);
+    the driver maps only its first 128 KB itself;
+  - `config.c` hands the driver each bank's size as platform data
+    (`include/linux/platform_data/nextdimension.h`). The driver picks the
+    largest piece of DRAM in one run, past the first MB (the program's),
+    for X: banks follow each other only from a full 16 MB one, so with
+    4 × 4 MB it's bank 1. It writes that piece at shared `+16`/`+20`
+    (`ARENA`, `ARENA_SIZE`) and makes the DRAM fbdev's MMIO region;
+  - the console reads `HEAD` back from DRAM before each command, so it
+    carries on where X left the ring.
+- **X driver** (`xorg-nextdimension/nextdimension_drv.c`, built by
+  `scripts/build-xdriver.sh` in an m68k chroot with `xserver-xorg-dev`):
+  - Render has formats only for ARGB, ABGR and BGRA orders
+    (`PictureCreateDefaultFormats`), not the board's RGBX, so X can't draw
+    in the video memory without losing Render, and every Xft program with
+    it. X's framebuffer is in the board's DRAM instead, in X's XRGB; the
+    shadow layer collects the damage and queues `PRESENT` for it;
+  - EXA (classic, offscreen pixmaps in the rest of the arena: 60 MB with a
+    64 MB board): solid fills at 32 and 8 bits per pixel (`GXcopy`,
+    `GXclear`, `GXset`), copies, and Render's two steps for text: glyphs
+    added into an 8-bit mask, and the text's color put over the window
+    through it; `UploadToScreen` puts new glyphs in EXA's cache;
+  - X writes the ring through the MMIO mapping, waits for `TAIL` when EXA
+    needs the CPU, leaves the ring idle at a VT switch and shows all of its
+    framebuffer again when it's back;
+  - without the program running or with too little DRAM, the framebuffer
+    is in system memory and the CPU converts the changes;
+  - `20-next.conf` picks it by the DRM driver's name (OutputClass
+    `MatchDriver "nextdimension"`), with modesetting next. An OutputClass
+    without a `Driver` line puts a NULL into X's list of drivers, which
+    ends it: X then failed instead of falling back to modesetting.
+- **Previous** (`0010-i860-speed`): `PREVIOUS_I860_SPEED=N` (`I860=N` in
+  `run-previous.sh`) multiplies the i860's budget of 33 million cycles a
+  second of emulated time; `max` removes it. `PREVIOUS_I860_STATS=1`
+  prints the rate: about 45 million cycles a second on this Mac idling and
+  55 to 65 million busy, so `max` is about twice a real i860. Tried and
+  reverted for lack of a measurable gain: a direct path into DRAM for the
+  i860's loads and stores (only the ring's first 64 KB needs ND_RAM's
+  ordered accesses) and checking messages every 64 cycles instead of 16;
+  at `max`, X's tests are bound by the 68040, not the i860.
+- **More boards:** `ND_SLOTS="2 4"` in `run-previous.sh` (Previous's
+  `bEnabled1`, `bEnabled2`). Two boards: both found, both i860s running
+  their consoles, `/proc/hardware` lists both; X uses the first, with 4 ×
+  4 MB banks its framebuffer in bank 1 and 456 KB for pixmaps.
+- **Results** (`tests/xbench.c`, ms per operation, `FAST=0`, NeXTcube
+  Turbo, 64 MB board):
+
+  | | modesetting | i860, `I860=1` | i860, `I860=max` |
+  |---|---|---|---|
+  | fill 400x300 | 829 | 6.9 | 3.5 |
+  | scroll 800x584 by 16 | 545 | 45 | 23 |
+  | PutImage 256x256 | 175 | 116 | 115 |
+  | core text, 48 characters | 7.9 | 4.1 | 4.1 |
+  | Xft text, 48 characters | 25 | 9.2 | 8.0 |
+  | move a 400x300 window | 1224 | 32 | 33 |
+
+  Before the Render commands, Xft text took 43 ms with the i860 driver:
+  EXA's fallbacks read the board's uncached memory.
+- **Tested** on screenshots: xdm's greeter, WindowMaker, an xterm with
+  fastfetch, Xft text in eight colors, the console after X and X after the
+  console, and X falling back to modesetting without the driver. Kernel
+  #88 installed on the disk with `dpkg -i` boots from it (`BOOT=disk`).
+
 ### Tooling
 
 - **Build:** a cross-build container (with m68k glibc headers), plus
@@ -934,9 +1066,13 @@ taken from NeXT's sources now come from.
   - the disk (`build-disk.sh`; `mkdisk.py` writes NeXT labels and swap,
     `update-disk.sh` updates an existing disk);
   - the netboot image and boot block (`build-image.sh`), and disks that
-    boot without the network (`nextboot.py`).
+    boot without the network (`nextboot.py`);
+  - m68k programs built in a Debian chroot under qemu-user: the dockapps
+    (`build-dockapps.sh`) and the NeXTdimension's X driver
+    (`build-xdriver.sh`).
 - **Emulator:** Previous configuration and run script, both serial ports on
-  PTYs (`out/ttyA`, `out/ttyB`); `BOOT=disk`, `NET=0`, `MACHINE=`.
+  PTYs (`out/ttyA`, `out/ttyB`); `BOOT=disk`, `NET=0`, `MACHINE=`,
+  `ND=1` with `ND_BANK=`, `ND_SLOTS=` and `I860=`.
 - **Console:** `console.py` (interactive), `serial-run.py` (scripted,
   `--port b`, `--login`), `sysrq.sh` (magic SysRq), `screenshot.sh` (the
   emulated screen as a PNG), `input.sh` (types on the NeXT keyboard, moves
@@ -950,7 +1086,8 @@ taken from NeXT's sources now come from.
   - `forkabrt.c`, `rwlock.c`: glibc `fork()`/`sigaction`/rwlock checks for
     the Debian root;
   - `drmtest.c`: a DRM test image in each format;
-  - `scrollbench.sh`: framebuffer console scrolling speed.
+  - `scrollbench.sh`: framebuffer console scrolling speed;
+  - `xbench.c`: X fills, scrolling, images, text and window moves.
 
 ### Previous patches (`previous/patches/`)
 
@@ -980,6 +1117,9 @@ the same tree. What the patches do:
 - Speed (see Done, step 10): `PREVIOUS_FAST_FORWARD=N`, `_setjmp`/`_longjmp`
   in the CPU core's exception macros, skipping idle `stop` time to the
   next event.
+- `PREVIOUS_I860_SPEED=N` runs the NeXTdimension's i860 faster than
+  33 MHz, and `PREVIOUS_I860_STATS=1` reports how fast it ran (see Done,
+  step 20).
 - Not patched: the built-in NFS server drops pipelined requests over TCP.
   Use UDP until that's fixed and reported.
 
@@ -1072,8 +1212,9 @@ programs and reboots (a full systemd boot came in step 10.5).
 Color and Turbo cube; settings, Ethernet, read-ahead and boot fixes that
 make the 32 MB NeXTstation and the 68030 boot Debian.
 
-**10.6. NeXTdimension.** Done (Done, step 16): a DRM driver for the
-board's 32-bit display, with the console drawn by its i860.
+**10.6. NeXTdimension.** Done (Done, steps 16 and 20): a DRM driver for the
+board's 32-bit display, with the console drawn by its i860, and an X
+driver that draws with it too.
 
 **11. Real hardware.** Netboot from a host via BOOTP/TFTP with a serial
 cable, then rerun the step 5 and 6 tests. This validates timing assumptions

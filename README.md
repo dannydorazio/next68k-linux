@@ -22,9 +22,10 @@ branch of https://github.com/dannydorazio/linux (`arch/m68k/next/`,
 | `scripts/rootfs.sh` | Assembles the busybox root file system (used by the two scripts below) |
 | `scripts/build-initramfs.sh` | Builds `out/initramfs.cpio.gz`: static busybox (Debian Ports) + `initramfs/` + executables in `tests/` |
 | `scripts/build-disk.sh` | Builds `out/disk.img`, a NeXT-labelled SCSI disk: `busybox` (default, 128 MB, partition a = ext4 with the busybox root) or `debian` (2 GB, a = `out/debian-root.img` grown to fit, b = 224 MB swap, c = 32 MB boot partition with the image's kernel, and the loader in the boot blocks, so it boots without the network). Won't replace an existing disk without `FORCE=1` (the old one becomes `out/disk.img.old`) |
-| `scripts/update-disk.sh` | Copies `debian-root/` into the existing `out/disk.img`, keeping installed packages and apt state |
+| `scripts/update-disk.sh` | Copies `debian-root/` into the existing `out/disk.img`, keeping installed packages and apt state; also the NeXTdimension's X driver if it has been built |
 | `scripts/install-packages.sh` | Installs Debian packages into the existing `out/disk.img` on the host (apt under qemu-user), keeping everything else; not kernel packages |
 | `scripts/build-dockapps.sh` | Builds the wmoiia and wmaapl dockapps from `../powerbook-debian/tools` for m68k on the host, into `out/dockapps/` |
+| `scripts/build-xdriver.sh` | Builds the NeXTdimension's X driver and `tests/xbench.c` for m68k on the host, into `out/xdriver/` (in the dockapps' chroot with `xserver-xorg-dev` added, kept as `out/m68k-xdev.tar.gz`) |
 | `scripts/mkdisk.py` | Writes a NeXT disk label (`dlV3`) around partition images, optionally adding a swap partition (`--swap MB`), a boot partition (`--boot MB`) and boot blocks (`--bootblock`); the image stays sparse |
 | `scripts/nextboot.py` | For an existing disk: `setup` writes the boot blocks and adds the boot partition (taken from the end of swap if the disk is full), `kernel` writes a kernel ELF file, optional initrd and command line into it |
 | `scripts/build-kernel-deb.sh` | Packages the kernel as `out/debs/linux-image-*.deb` (`make bindeb-pkg`) |
@@ -45,7 +46,8 @@ branch of https://github.com/dannydorazio/linux (`arch/m68k/next/`,
 | `scripts/sysrq.sh` | Sends a magic SysRq (`t`, `w`, `p`, `m`, ...): Previous turns SIGUSR1 into a serial break |
 | `scripts/nmi.sh` | Raises an NMI (Previous turns SIGUSR2 into one): the kernel prints the interrupted registers, even with interrupts off |
 | `scripts/build-i860-binutils.sh` | Builds binutils 2.30 for the i860 (the last release with it) into the Docker volume `next68k-i860`, for `nd-firmware/build.sh` |
-| `nd-firmware/` | The NeXTdimension's i860 program that draws the console (`ndfw.s`), and `build.sh`, which assembles it into the kernel's `nextdimension_fw.h` |
+| `nd-firmware/` | The NeXTdimension's i860 program that draws for the console and for X (`ndfw.s`), and `build.sh`, which assembles it into the kernel's `nextdimension_fw.h` |
+| `xorg-nextdimension/` | The NeXTdimension's X driver: X's framebuffer and pixmaps in the board's memory, filled, copied and drawn on by the i860, which also shows them on the screen |
 | `initramfs/` | `inittab` and `rcS` for the busybox root file system |
 | `tests/regcheck.c` | Checks that syscalls and FPSP emulation preserve user registers |
 | `tests/nfsmount.c` | Mounts NFS with text options (busybox's `mount` uses the old binary format) |
@@ -53,8 +55,9 @@ branch of https://github.com/dannydorazio/linux (`arch/m68k/next/`,
 | `tests/ptdump.c` | Attaches with ptrace and prints a process's registers, user stack and memory (no strace or gdb needed) |
 | `tests/drmtest.c` | Shows a test image through the DRM API (`xrgb`, `rgb565`, or `c2`/`c4` with a palette); statically linked, copied to the NeXT over HTTP |
 | `tests/scrollbench.sh` | Times how fast the framebuffer console scrolls, with full-width and short lines |
+| `tests/xbench.c` | Times fills, scrolling, images, core and Xft text and moving a window in X, in ms per operation (built by `build-xdriver.sh`) |
 | `tests/forkabrt.c`, `tests/rwlock.c` | glibc tests for the Debian root: `fork()` then `sigaction(SIGABRT)`, rwlocks and the cached TID |
-| `previous/patches/` | Previous patches, one per change, applied in the order of `series` (`previous/README.md` lists them): SCC, ESP and 68040 MMU fixes, Ethernet frames at wire speed, ordered NeXTdimension memory, the host interface the scripts use (serial ports on ptys and logs, break, NMI and screenshot on signals, keyboard and mouse input from a FIFO), and speed (`_setjmp`, idle `stop` skipping, fast-forward) |
+| `previous/patches/` | Previous patches, one per change, applied in the order of `series` (`previous/README.md` lists them): SCC, ESP and 68040 MMU fixes, Ethernet frames at wire speed, ordered NeXTdimension memory, the host interface the scripts use (serial ports on ptys and logs, break, NMI and screenshot on signals, keyboard and mouse input from a FIFO), and speed (`_setjmp`, idle `stop` skipping, fast-forward, the i860's speed) |
 | `previous/patches.py` | Applies the series to Previous (`apply`), or rewrites one patch from a changed Previous tree (`refresh NAME`) |
 | `previous/previous.cfg.in` | Previous configuration template, which `run-previous.sh` fills in for the machine chosen: `out/disk.img` as SCSI target 0, boot from Ethernet or the disk, and an optional NeXTdimension |
 
@@ -81,7 +84,11 @@ NeXTstation Color (8 MB SIMMs, 32 MB), `MACHINE=turbo`, `turbo-color` or
 `cube-turbo` a 33 MHz Turbo with 128 MB, and `MACHINE=cube030` the original
 68030 NeXT Computer (its 1.0 ROM). `ND=1` adds a NeXTdimension board in
 slot 2 of a cube and shows its screen instead of the built-in one; it has
-16 MB, or 64 MB with `ND_BANK=16`.
+16 MB, or 64 MB with `ND_BANK=16`. `ND_SLOTS="4"` puts it in slot 4
+instead, `ND_SLOTS="2 4"` one in each (the screen shown is the first's).
+Previous gives the board's i860 as many instructions as a 33 MHz one gets;
+`I860=4` gives it four times as many and `I860=max` as many as the host
+manages (about twice a real one's here).
 
 The emulator runs up to 8 times faster than real time (`FAST=8`, the
 default; `FAST=max` for no limit, `FAST=0` for real time). Inside the
@@ -170,6 +177,20 @@ it's installed by hand: from `JetBrainsMono.tar.xz` of Nerd Fonts v3.5.1
 to `/usr/local/share/fonts/jetbrains-mono-nerd/` on the NeXT and run
 `fc-cache /usr/local/share/fonts`. Without it xterm falls back to DejaVu
 Sans Mono.
+
+With a NeXTdimension, X uses the board's own driver (`xorg-nextdimension/`,
+picked by `debian-root/etc/X11/xorg.conf.d/20-next.conf`; without it, or
+without a board, modesetting). Build it with `./scripts/build-xdriver.sh`,
+then `./scripts/update-disk.sh` (or `build-debian.sh`) installs it from
+`out/xdriver/`; it has to be built against the X server version on the
+disk, which `build-xdriver.sh` prints. X's framebuffer and pixmaps live in
+the board's memory, where the i860 fills and copies them and draws
+antialiased text, and copies what changed to the screen. Compared with
+modesetting (`tests/xbench.c`, `FAST=0`, NeXTcube Turbo with a 64 MB
+board), filling a 400x300 rectangle takes 7 ms instead of 830, scrolling
+800x584 by a line 45 instead of 545, moving a 400x300 window 32 instead
+of 1220, and a line of Xft text 9 instead of 25 (with `I860=max`, fills
+and scrolls take half as long again).
 
 Two Window Maker dockapps from `../powerbook-debian/tools` run on it too:
 wmoiia (the OIIA cat; click him) and wmaapl (the AAPL quote, from Yahoo
@@ -266,7 +287,8 @@ initramfs and disk are still there for quick kernel tests (not rerun since
   the framebuffer console: `drivers/gpu/drm/tiny/nextdisplay.c`
 - keyboard and mouse: `drivers/input/keyboard/nextkbd.c`
 - the NeXTdimension board (32-bit color), its console drawn by the board's
-  i860 (`nd-firmware/`): `drivers/gpu/drm/tiny/nextdimension.c`
+  i860 (`nd-firmware/`): `drivers/gpu/drm/tiny/nextdimension.c`; X draws
+  with the i860 too (`xorg-nextdimension/`)
 
 Not done yet: sound, floppy, ADB keyboards. Tested in Previous, with
 Debian, on the NeXTcube (also with a NeXTdimension), NeXTstation (32 MB),

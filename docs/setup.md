@@ -86,3 +86,11 @@ booting from disk, the network, the busybox initramfs.
 - `./scripts/build-i860-binutils.sh`: the i860 assembler, only needed to
   change the NeXTdimension firmware (`nd-firmware/`); the kernel ships its
   output.
+- `./scripts/build-xdriver.sh`: the
+  NeXTdimension's X driver (and `tests/xbench.c`), built in a Debian m68k
+  chroot under qemu-user. `update-disk.sh` and `build-debian.sh` install it
+  when it's there; without it X uses modesetting. Rebuild it when Debian's
+  X server changes version.
+- macOS Spotlight opens `out/disk.img` for a few seconds after Previous
+  has written it, and `run-previous.sh` won't start while it does. Adding
+  `out/` to Spotlight's Search Privacy list avoids the wait.
