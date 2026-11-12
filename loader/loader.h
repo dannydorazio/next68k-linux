@@ -91,6 +91,7 @@ struct handoff {
 void enter_kernel(const struct handoff *h, int is_040) __attribute__((noreturn));
 void data_cache_off(int is_040);
 int cpu_is_040(void);
+int cpu_is_060(void);
 extern const char _start[], trampoline[], trampoline_end[];
 extern const struct payload _payload;
 

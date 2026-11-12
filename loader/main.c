@@ -213,7 +213,8 @@ int loader_main(void *mg, u32 rom_vbr, const char *rom_arg)
 	 * machine type, at the very top of memory: there is only one 68030
 	 * model.
 	 */
-	int is_040 = cpu_is_040();
+	int is_040 = cpu_is_040();	/* or 68060: they work alike here */
+	int is_060 = is_040 && cpu_is_060();
 	int type = is_040 ? MON(u8, mg, MG_machine_type) : NEXT_MODEL_CUBE;
 	int rev = is_040 ? MON(u8, mg, MG_board_rev) : 0;
 	int is_turbo = type == NEXT_MODEL_TURBO_MONO ||
@@ -232,7 +233,7 @@ int loader_main(void *mg, u32 rom_vbr, const char *rom_arg)
 
 	printf("\nNeXT Linux loader\n");
 	printf("%s (machine type %d, board rev %d), %s\n", model_name(type),
-	       type, rev, is_040 ? "68040" : "68030");
+	       type, rev, is_060 ? "68060" : is_040 ? "68040" : "68030");
 	printf("ROM: mg %08x vbr %08x sp %08x\n", (u32)mg, rom_vbr, sp);
 	printf("ROM boot command: %s\n", rom_arg ? rom_arg : "");
 
@@ -295,9 +296,9 @@ int loader_main(void *mg, u32 rom_vbr, const char *rom_arg)
 	}
 
 	bi_add_u32(BI_MACHTYPE, MACH_NEXT);
-	bi_add_u32(BI_CPUTYPE, is_040 ? CPU_68040 : CPU_68030);
-	bi_add_u32(BI_FPUTYPE, is_040 ? FPU_68040 : FPU_68882);
-	bi_add_u32(BI_MMUTYPE, is_040 ? MMU_68040 : MMU_68030);
+	bi_add_u32(BI_CPUTYPE, is_060 ? CPU_68060 : is_040 ? CPU_68040 : CPU_68030);
+	bi_add_u32(BI_FPUTYPE, is_060 ? FPU_68060 : is_040 ? FPU_68040 : FPU_68882);
+	bi_add_u32(BI_MMUTYPE, is_060 ? MMU_68060 : is_040 ? MMU_68040 : MMU_68030);
 	for (i = 0; i < nchunks; i++)
 		bi_add(BI_MEMCHUNK, &chunks[i], sizeof(chunks[i]));
 	bi_add(BI_COMMAND_LINE, cmdline, strlen(cmdline) + 1);

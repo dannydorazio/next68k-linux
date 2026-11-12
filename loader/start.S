@@ -95,6 +95,30 @@ cpu_is_040:
 	rts
 
 /*
+ * int cpu_is_060(void)
+ *
+ * Only for a CPU that cpu_is_040() accepts: the 68060's CACR keeps the
+ * branch cache enable in bit 23, where the 68040's reads back 0.
+ */
+	.globl	cpu_is_060
+cpu_is_060:
+	movew	%sr,%d1
+	movew	#0x2700,%sr
+	movel	%d2,%sp@-
+	.chip	68040
+	movec	%cacr,%d2
+	movel	%d2,%d0
+	orl	#0x00800000,%d0
+	movec	%d0,%cacr
+	movec	%cacr,%d0
+	movec	%d2,%cacr
+	.chip	68k
+	movel	%sp@+,%d2
+	movew	%d1,%sr
+	andl	#0x00800000,%d0
+	rts
+
+/*
  * void data_cache_off(int is_040)
  *
  * Write back and turn off the data cache, so that DMA from the disk lands
