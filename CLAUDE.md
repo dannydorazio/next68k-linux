@@ -33,7 +33,9 @@ hardware), `docs/debugging.md` (how to find out what's wrong).
   session trailers. Kernel commits follow kernel style and are split by
   subsystem (`m68k:`, `scsi:`, `net: ethernet:`, `drm/tiny:`, ...).
 - **No binary data in git.** Everything in `out/` and every build product
-  must be regenerable from what is tracked; `.gitignore` keeps it out.
+  must be regenerable from what is tracked; `.gitignore` keeps it out. The
+  one exception is documentation screenshots, kept small, such as
+  `docs/screenshot.png` at the top of `README.md`.
 - **Keep the documentation current as work lands**, not at the end: the
   status at the top of `ROADMAP.md`, a Done section per step with what was
   found and how it was tested, and `README.md` for anything about using the

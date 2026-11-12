@@ -1,5 +1,7 @@
 # Linux on NeXT (m68k): tooling
 
+![Debian on an emulated NeXTcube Turbo with a NeXTdimension: fastfetch in an xterm under WindowMaker, with the wmoiia and wmaapl dockapps](docs/screenshot.png)
+
 Boot loader, build scripts and emulator setup for bringing up Linux on the
 68030/68040 NeXT machines. The kernel work itself is on the `next68k-linux`
 branch of https://github.com/dannydorazio/linux (`arch/m68k/next/`,
