@@ -10,6 +10,10 @@ branch of https://github.com/dannydorazio/linux (`arch/m68k/next/`,
 
 | Path | What |
 |---|---|
+| `CLAUDE.md` | How to work in this tree: where things are, ground rules, the emulator's disk-image rules, traps (read by Claude Code at the start of a session) |
+| `docs/setup.md` | Setting everything up on a new machine: checkouts, Previous, the build container, the first boot |
+| `docs/hardware.md` | What we know about the NeXT hardware and Previous's emulation of it |
+| `docs/debugging.md` | How to find out what the kernel, the NeXT or the emulator is doing |
 | `docker/Dockerfile` | Debian cross-build environment (`m68k-linux-gnu-gcc`) |
 | `loader/` | Linux loader started by the NeXT ROM monitor: `mkimage.py` appends the kernel for netbooting, or the loader alone is a disk's boot block and reads the kernel from the disk's boot partition (`disk.c`, polled SCSI in `scsi.c`) |
 | `scripts/build-kernel.sh` | Builds the kernel in the container (objects on the `next68k-kbuild` Docker volume, since this filesystem is case-insensitive) |
@@ -31,6 +35,7 @@ branch of https://github.com/dannydorazio/linux (`arch/m68k/next/`,
 | `scripts/boot-wait.sh` | Starts `run-previous.sh` in the background with the given settings (`MACHINE=turbo BOOT=disk`, ...), waits for a login prompt or a panic and prints the main boot lines |
 | `scripts/time-download.sh` | Times a 20 MB HTTP download into the running NeXT, checks its MD5 and shows the Ethernet counters; serves `out/www` on port 8765 |
 | `scripts/build-tests.sh` | Builds the test programs in `tests/` as static m68k binaries (the freestanding ones without libc) |
+| `scripts/pc2sym.py` | Turns kernel addresses (e.g. PCs logged by temporary code in Previous) into function+offset, counted, from the current `System.map` |
 | `scripts/console.py` | Interactive serial console on `out/ttyA` (Ctrl-] quits) |
 | `scripts/serial-run.py` | Runs commands over the serial console and prints the transcript (`--port b` for the second port, `--login` to log in as root first) |
 | `scripts/sysrq.sh` | Sends a magic SysRq (`t`, `w`, `p`, `m`, ...): Previous turns SIGUSR1 into a serial break |

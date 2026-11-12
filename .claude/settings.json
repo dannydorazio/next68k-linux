@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "additionalDirectories": [
+      "../linux",
+      "../trunk",
+      "../NeXTDimension",
+      "../src"
+    ],
+    "allow": [
+      "Bash(./scripts/build-kernel.sh:*)",
+      "Bash(./scripts/build-image.sh:*)",
+      "Bash(./scripts/build-kernel-deb.sh:*)",
+      "Bash(./scripts/build-tests.sh:*)",
+      "Bash(./scripts/boot-wait.sh:*)",
+      "Bash(./scripts/run-previous.sh:*)",
+      "Bash(./scripts/stop-previous.sh:*)",
+      "Bash(./scripts/screenshot.sh:*)",
+      "Bash(./scripts/sysrq.sh:*)",
+      "Bash(./scripts/nmi.sh:*)",
+      "Bash(./scripts/input.sh:*)",
+      "Bash(./scripts/time-download.sh:*)",
+      "Bash(python3 scripts/serial-run.py:*)",
+      "Bash(python3 scripts/pc2sym.py:*)",
+      "Bash(./nd-firmware/build.sh:*)",
+      "Bash(lsof out/disk.img:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(svn status:*)",
+      "Bash(svn diff:*)",
+      "Bash(svn info:*)"
+    ],
+    "ask": [
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ],
+    "deny": [
+      "Bash(pkill:*)",
+      "Bash(killall:*)"
+    ]
+  }
+}
