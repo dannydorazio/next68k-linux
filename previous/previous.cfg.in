@@ -1,0 +1,77 @@
+# Previous configuration for booting Linux on a non-Turbo 68040 NeXT
+# (25 MHz).  run-previous.sh fills in @TOP@, the boot device (2 Ethernet,
+# 1 SCSI disk), whether the Ethernet cable is in, and the machine: a NeXTcube gets
+# all four 16 MB banks (64 MB); Previous only populates the first two on a
+# non-Turbo NeXTstation (32 MB).  The NeXTstation Color takes 8 MB SIMMs at
+# most (32 MB).  Turbo machines (33 MHz, the MCS1850 clock) get 4 x 32 MB;
+# they keep the original NeXT keyboard rather than ADB.  The 68030 NeXT
+# Computer has a 68882, the original NCR 53C90 and its own ROM.
+
+[Log]
+sLogFileName = @TOP@/out/previous.log
+nTextLogLevel = 3
+nAlertDlgLogLevel = 1
+bConfirmQuit = FALSE
+bConsoleWindow = FALSE
+
+[ConfigDialog]
+bShowConfigDialogAtStartup = FALSE
+
+[Sound]
+bEnableMicrophone = FALSE
+bEnableSound = FALSE
+
+[Memory]
+nMemoryBankSize0 = @BANK@
+nMemoryBankSize1 = @BANK@
+nMemoryBankSize2 = @BANK@
+nMemoryBankSize3 = @BANK@
+
+[Boot]
+nBootDevice = @BOOTDEV@
+bEnableDRAMTest = FALSE
+bEnablePot = TRUE
+bVerbose = TRUE
+
+[HardDisk]
+szImageName0 = @TOP@/out/disk.img
+nDeviceType0 = 1
+bDiskInserted0 = TRUE
+bWriteProtected0 = FALSE
+
+[Ethernet]
+bEthernetConnected = @ETHERNET@
+bTwistedPair = FALSE
+nHostInterface = 0
+szNFSPathName0 = @TOP@/out/nfsroot
+
+[System]
+nMachineType = @MACHINETYPE@
+bColor = @COLOR@
+bTurbo = @TURBO@
+bNBIC = @NBIC@
+bADB = FALSE
+nSCSI = @SCSI@
+nRTC = @RTC@
+nCpuLevel = @CPULEVEL@
+nCpuFreq = @CPUFREQ@
+bCompatibleCpu = FALSE
+bRealtime = FALSE
+nDSPType = 2
+bDSPMemoryExpansion = @DSPMEM@
+n_FPUType = @FPU@
+bCompatibleFPU = TRUE
+bMMU = TRUE
+
+[Screen]
+nMode = 0
+nSingleModeSlot = @SCREENSLOT@
+
+[Dimension]
+bI860Thread = TRUE
+nConsoleSlot = 0
+bEnabled0 = @ND@
+nMemoryBankSize00 = 4
+nMemoryBankSize01 = 4
+nMemoryBankSize02 = 4
+nMemoryBankSize03 = 4
