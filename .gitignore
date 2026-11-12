@@ -1,0 +1,14 @@
+# Everything built or downloaded goes here: disk and netboot images,
+# kernel packages, logs, screenshots.  The scripts regenerate it.
+/out/
+
+# build products
+*.o
+__pycache__/
+/loader/loader.elf
+/loader/loader.bin
+/nd-firmware/ndfw.bin
+# the test programs (scripts/build-tests.sh)
+/tests/*
+!/tests/*.c
+!/tests/*.sh
