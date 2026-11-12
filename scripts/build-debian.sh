@@ -45,6 +45,7 @@ exec docker run --rm --privileged -v "$top":/work next68k-build sh -ec "
 		--customize-hook='chroot \"\$1\" systemctl enable systemd-networkd' \
 		--customize-hook='chroot \"\$1\" systemctl disable e2scrub_reap.service' \
 		--customize-hook='sed -i \"s/^LOGIN_TIMEOUT.*/LOGIN_TIMEOUT\t\t300/\" \"\$1\"/etc/login.defs' \
+		--customize-hook='[ ! -f /work/out/xdriver/nextdimension_drv.so ] || install -m 644 /work/out/xdriver/nextdimension_drv.so \"\$1\"/usr/lib/xorg/modules/drivers/' \
 		--customize-hook='mkdir -p \"\$1\"/tmp/debs && cp /work/out/debs/linux-image-*.deb \"\$1\"/tmp/debs/' \
 		--customize-hook='chroot \"\$1\" sh -c \"dpkg -i /tmp/debs/*.deb && rm -r /tmp/debs\"' \
 		--customize-hook='mount --bind /etc/resolv.conf \"\$1\"/etc/resolv.conf; chroot \"\$1\" apt-get update; s=\$?; umount \"\$1\"/etc/resolv.conf; exit \$s' \
