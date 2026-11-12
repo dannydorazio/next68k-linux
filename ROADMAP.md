@@ -49,8 +49,14 @@ tooling in this directory; emulator patches in `previous/`.
 - Retry the full upgrade (`apt-get update && apt-get -y dist-upgrade`) once
   Debian sid has newer packages; `out/disk.img.pre-upgrade` is the
   rollback.
-- Nothing is committed yet, in either `../linux` (branch `next68k`) or
-  here.
+- Committed on 2026-11-11: the kernel as 11 commits by subsystem on
+  `next68k-linux` of https://github.com/dannydorazio/linux (local branch
+  `next68k`; the Torvalds tree is the `upstream` remote), and this tree on
+  `main` of https://github.com/dannydorazio/next68k-linux. Neither has
+  Signed-off-by lines yet. On the Mac's case-insensitive disk, 13 kernel
+  files whose names differ only in case (netfilter's `xt_DSCP.c` and
+  `xt_dscp.c`, ...) are marked `skip-worktree`, since they can't both
+  exist there.
 
 ## Done
 
