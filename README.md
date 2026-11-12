@@ -86,6 +86,9 @@ NeXTstation Color (8 MB SIMMs, 32 MB), `MACHINE=turbo`, `turbo-color` or
 slot 2 of a cube and shows its screen instead of the built-in one; it has
 16 MB, or 64 MB with `ND_BANK=16`. `ND_SLOTS="4"` puts it in slot 4
 instead, `ND_SLOTS="2 4"` one in each (the screen shown is the first's).
+`CPU=68060` puts a 68060 in a Turbo instead of its 68040, a machine NeXT
+never made (Previous patch `0011`, a kernel with `M68060`, which
+`next_defconfig` has).
 Previous gives the board's i860 as many instructions as a 33 MHz one gets;
 `I860=4` gives it four times as many and `I860=max` as many as the host
 manages (about twice a real one's here).
@@ -293,7 +296,8 @@ initramfs and disk are still there for quick kernel tests (not rerun since
 Not done yet: sound, floppy, ADB keyboards. Tested in Previous, with
 Debian, on the NeXTcube (also with a NeXTdimension), NeXTstation (32 MB),
 NeXTstation Color, NeXTstation Turbo, NeXTstation Turbo Color and NeXTcube
-Turbo, and the 68030 NeXT Computer (a full systemd boot to a login in about 21 emulated minutes); not on real
+Turbo, and the 68030 NeXT Computer (a full systemd boot to a login in about 21 emulated minutes),
+and a NeXTcube Turbo with a 68060 (`CPU=68060`); not on real
 hardware. See `ROADMAP.md` for what's next.
 
 ## License

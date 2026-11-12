@@ -137,6 +137,18 @@ Behind the sound/keyboard/mouse interface at `0x0200e000`
 - Disk labels come in three versions ("NeXT", "dlV2", "dlV3"), with eight
   partitions whose offsets count label sectors from the end of the front
   porch (`block/partitions/next.c`).
+- ROM 3.3 (the Turbos'), as found by running it on a 68060 in Previous:
+  - its first instructions keep data in the 68040's MSP and ISP (`movec`),
+    registers the 68060 doesn't have;
+  - it checks a CRC-32 of everything from offset `0x1e` against the one
+    stored at `0x1a` (the 22-byte header has its own at `0x16`). On a
+    mismatch it blinks the LED (bit 0 of `0x0200d000`) once per round,
+    in a loop at `0x10040ec`; other failures blink other counts;
+  - its probes recover from the bus errors they cause through a
+    recovery address in the monitor's globals (offset 420): the exception
+    handler pops the frame itself, by a table of frame formats at
+    `0x1011c20`, and calls any other format a "bogus stack frame";
+  - its FPU test uses `fsne` (FScc).
 
 ## NeXTdimension
 
@@ -200,6 +212,12 @@ A cube's NeXTBus board with an i860 XR at 33 MHz, its own DRAM (up to
     patch paces them at 10 Mbit/s;
   - the i860 thread saw shared memory out of order on Apple Silicon; the
     patch orders the DRAM accesses.
+- **Not real hardware at all:** with patch `0011` (`CPU=68060`), a Turbo
+  with a 68060. Its FPU executes the instructions a 68060 leaves to
+  software, MOVEC still reaches MSP and ISP, and the ROM is patched in
+  memory for the 68060's access fault frame; integer instructions it
+  lacks trap as on a real one. It counts half a 68040's cycles per
+  instruction: 32.6 BogoMIPS against 12.9 on the 33 MHz 68040.
 - **Different from real hardware:** the emulated 68040 runs at about 60%
   of a real 25 MHz one. That makes the emulator stricter than real hardware
   on interrupt latency.

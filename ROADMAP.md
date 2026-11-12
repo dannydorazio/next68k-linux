@@ -34,6 +34,9 @@ tooling in this directory; emulator patches in `previous/`.
   a warm reboot too (the driver interrupted the ROM before it was ready);
   the console scrolls by copying on the board; Previous can run the i860
   faster (`I860=`); boards in slots 4 and 6 work.
+- A 68060 NeXT (Done, step 21): Previous patched to put a 68060 in a
+  Turbo (`CPU=68060`), and the loader and kernel taught about it; Debian
+  boots to a login and fastfetch shows "Motorola 68060".
 - X and WindowMaker (Done, step 19): xdm on the screen, WindowMaker as
   the session, installed on the host into `out/disk.img`
   (`scripts/install-packages.sh`). Tested on the NeXTcube Turbo with a
@@ -1055,6 +1058,58 @@ taken from NeXT's sources now come from.
   console, and X falling back to modesetting without the driver. Kernel
   #88 installed on the disk with `dpkg -i` boots from it (`BOOT=disk`).
 
+### 21. A 68060 NeXT
+
+NeXT never made one; Previous's CPU core (WinUAE's) has a 68060, and
+`CPU=68060` in `run-previous.sh` now puts it in a Turbo
+(`0011-m68060`). What it took, in the order the boot hit it:
+
+- **Previous didn't build the 68060 core** (WinUAE's number 33, with its
+  MMU): it stopped with "no CPU emulation cores available". gencpu now
+  generates it and the CPU table lists it. Its run loop lacked Previous's
+  `run_other_MPUs()`, so no emulated time passed: the machine looked hung
+  and `screenshot.sh` got nothing.
+- **The ROM keeps data in MSP and ISP**, from its first instructions;
+  the 68060 has neither, and its illegal-instruction trap came before any
+  vector table: a double fault. This 68060 still reaches them with MOVEC
+  (SR's M bit still works in WinUAE's 68060).
+- **The ROM's bus error handler** pops the frame itself, by a table of
+  frame formats, to recover from its probes; the 68060's access fault frame
+  (format 4) is "bogus" to it and the probe stopped at the monitor prompt.
+  `rom.c` points format 4 at a 4-instruction stub in the zeros at the end
+  of the ROM (pop 8 bytes more, then as the 68040's format 7). That broke
+  the ROM's CRC-32 (over offset `0x1e` on, stored at `0x1a`), which made
+  it blink the LED once per round, so the patch corrects the CRC too.
+  Found by printing each exception's vector and PC, then the PC every few
+  million instructions: the CPU was in the LED loop. The table is found by
+  its contents, which ROM 2.5 doesn't have: only the Turbos boot.
+- **The ROM's FPU test uses FScc**, which the 68060 leaves to software
+  (an F-line trap): this 68060's FPU executes everything the 68040's did.
+  The integer instructions it lacks still trap (vector 61); the kernel's
+  060 package emulates them, 284 times on the way to a login.
+- **Speed:** Previous divides the 68040's cycle counts by 3 (calibrated
+  with NXbench) in gencpu's `adjust_cycles`, which had no 68060 case: it
+  ran at 3.76 BogoMIPS against the 68040's 12.87, slow enough that
+  `login` timed out. The 68060 now counts half the 68040's cycles (about
+  twice the work per clock, as Motorola's figures have it), DBcc kept at
+  the 68040's for the ROM's delay loops: 32.56 BogoMIPS.
+- **Loader:** `cpu_is_060()` sets the 68060's branch cache enable (CACR
+  bit 23, 0 on a 68040) and reads it back; the bootinfo then says 68060
+  for CPU, FPU and MMU. The 68060 is otherwise a 68040 to the loader.
+- **Kernel:** `next_defconfig` adds `M68060` (with the 060 package); the
+  NeXT code's 68040 checks (the SCC and devices behind the BMAP, the I/O
+  mapping in `head.S`, the reboot path) become 68040-or-68060.
+- **`patches.py refresh`** read `diff` in text mode, which turned the CRLF
+  lines of `i860.cpp` into LF: `0010` as pushed didn't apply to a fresh
+  tree. It now keeps the bytes; `0010` is repaired, and the whole series
+  applies to pristine r1864 again.
+- **Tested:** `MACHINE=cube-turbo CPU=68060 BOOT=disk`, kernel #93 written
+  to `out/disk.img`'s boot partition with `nextboot.py` (no `dpkg`, so the
+  Debian package database still names the old kernel): the loader reports
+  a 68060, the kernel enables its errata I14 workaround, Debian boots to a
+  login in 78 s at `FAST=8`, `/proc/cpuinfo` shows a 68060 CPU, MMU and
+  FPU, and fastfetch on `tty1` shows "Motorola 68060 @ 33 MHz".
+
 ### Tooling
 
 - **Build:** a cross-build container (with m68k glibc headers), plus
@@ -1072,7 +1127,7 @@ taken from NeXT's sources now come from.
     (`build-xdriver.sh`).
 - **Emulator:** Previous configuration and run script, both serial ports on
   PTYs (`out/ttyA`, `out/ttyB`); `BOOT=disk`, `NET=0`, `MACHINE=`,
-  `ND=1` with `ND_BANK=`, `ND_SLOTS=` and `I860=`.
+  `CPU=68060`, `ND=1` with `ND_BANK=`, `ND_SLOTS=` and `I860=`.
 - **Console:** `console.py` (interactive), `serial-run.py` (scripted,
   `--port b`, `--login`), `sysrq.sh` (magic SysRq), `screenshot.sh` (the
   emulated screen as a PNG), `input.sh` (types on the NeXT keyboard, moves
@@ -1120,6 +1175,7 @@ the same tree. What the patches do:
 - `PREVIOUS_I860_SPEED=N` runs the NeXTdimension's i860 faster than
   33 MHz, and `PREVIOUS_I860_STATS=1` reports how fast it ran (see Done,
   step 20).
+- A 68060 in a Turbo, `nCpuLevel = 5` (see Done, step 21).
 - Not patched: the built-in NFS server drops pipelined requests over TCP.
   Use UDP until that's fixed and reported.
 
