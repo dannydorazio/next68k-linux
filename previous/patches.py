@@ -43,7 +43,8 @@ def read_series():
 
 def patch_files(path):
     """The files a patch touches."""
-    return set(re.findall(r"(?m)^\+\+\+ (\S+)", open(path).read()))
+    return set(re.findall(r"(?m)^\+\+\+ (\S+)",
+                          open(path, encoding="latin-1").read()))
 
 
 def run_patch(tree, path, reverse=False, dry=False):
@@ -115,17 +116,18 @@ def refresh(args):
             r = subprocess.run(["diff", "-uN", "--label", f, "--label", f,
                                 fa if os.path.exists(fa) else "/dev/null",
                                 fb if os.path.exists(fb) else "/dev/null"],
-                               capture_output=True, text=True)
-            diff += r.stdout
+                               capture_output=True)
+            diff += r.stdout.decode("latin-1")
 
     if os.path.exists(target):
-        text = open(target).read()
+        text = open(target, encoding="latin-1", newline="").read()
         header = text[:text.index("--- ")] if "--- " in text else text
     else:
         header = "One-line summary\n\nWhat this changes in Previous, and why.\n\n"
     if not diff:
         sys.exit("%s: no changes left for it" % name)
-    with open(target, "w") as f:
+    # newline="" keeps the CRs of files with CRLF line ends (i860.cpp)
+    with open(target, "w", encoding="latin-1", newline="") as f:
         f.write(header + diff)
     if new:
         with open(SERIES, "a") as f:
