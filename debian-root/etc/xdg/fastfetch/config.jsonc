@@ -37,6 +37,18 @@
       "key": "Display",
       "text": "sed -n 's/^Display:[[:space:]]*//p' /proc/hardware"
     },
+    // A NeXTdimension's display and the board itself, from its "Slot N:"
+    // line; nothing when there's no board.
+    {
+      "type": "command",
+      "key": "Display",
+      "text": "sed -n 's/^Slot [0-9]:[[:space:]]*NeXTdimension:.*, \\([0-9]*x[0-9]*\\) \\(.*\\) display$/\\1, \\2 (NeXTdimension)/p' /proc/hardware"
+    },
+    {
+      "type": "command",
+      "key": "NeXTdimension",
+      "text": "sed -n '/^Slot [0-9]:[[:space:]]*NeXTdimension:/{s/^Slot \\([0-9]\\):[[:space:]]*NeXTdimension: \\(i860[^,]*\\) at \\([^,]*\\), \\([^,]*\\) memory, \\([^,]*\\) video memory,.*/Intel \\2 @ \\3, \\4 + \\5 VRAM (slot \\1)/; s/ stepping \\([0-9]*\\) @/ (stepping \\1) @/; p;}' /proc/hardware"
+    },
     "memory",
     "swap",
     "disk",

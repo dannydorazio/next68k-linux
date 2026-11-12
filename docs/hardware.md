@@ -150,6 +150,12 @@ A cube's NeXTBus board with an i860 XR at 33 MHz, its own DRAM (up to
 - **Board space** (`0xn0000000` plus): DRAM at `+0x08000000`, video memory
   at `+0x0e000000`. The video memory is 4 MB, 1152 pixels a line, each
   pixel a big-endian word `0xRRGGBBAA`.
+- **DRAM size:** four banks, each in its own 16 MB of board space, holding
+  4 or 16 MB or nothing. In Previous a 4 MB bank repeats through its 16 MB
+  and an empty one reads 0 and ignores writes, so `config.c` sizes each bank
+  by writing a mark every 4 MB and counting those that survive (and puts
+  back what was there). How a real board answers for an empty bank is
+  unknown: a read that bus errors counts as empty.
 - **Slot space** (`0xFn000000` plus):
   - the memory controller at `+0x800000`. CSR0 bit 0 restarts the i860,
     bit 3 interrupts it, and bit 2 is the i860's interrupt enable. CSR1

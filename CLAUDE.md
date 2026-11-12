@@ -19,7 +19,8 @@ Sibling checkouts next to this one (`~/git/`):
 | `../src/sys/arch/next68k` | NetBSD's next68k port. Reference only; some files carry the 4-clause BSD license, which the GPL can't take. |
 
 In this repository: `README.md` (usage, layout, status), `ROADMAP.md` (plan,
-and what was done and learned in each step), `docs/setup.md` (building
+what was done and learned in each step, and the open issues: known
+problems go in its Open issues section), `docs/setup.md` (building
 everything on a new machine), `docs/hardware.md` (what we know about the
 hardware), `docs/debugging.md` (how to find out what's wrong).
 `out/` holds everything built, downloaded or logged, and isn't tracked.

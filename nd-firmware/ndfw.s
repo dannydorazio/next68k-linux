@@ -10,6 +10,8 @@
 //	  +0  READY	this writes NDFW_MAGIC once it's running
 //	  +4  HEAD	the host: where it will put the next command
 //	  +8  TAIL	this: where it will take the next command
+//	  +12 EPSR	this: its extended processor status register, which
+//			says which i860 it is (written before READY)
 //	HEAD and TAIL count words from the start of the ring, which is
 //	RING_WORDS long, at DRAM offset 0x10000.  The ring is empty when
 //	they're equal.  A command doesn't wrap: WRAP sends this back to the
@@ -31,6 +33,7 @@
 	READY	= 0
 	HEAD	= 4
 	TAIL	= 8
+	EPSR	= 12
 	RING	= 0xF8010000
 	VRAM	= 0xFE000000
 	PITCH	= 4608
@@ -52,6 +55,8 @@ _start:
 	or	PITCH, r0, r19
 	or	r0, r0, r20
 	st.l	r0, TAIL(r16)
+	ld.c	epsr, r4
+	st.l	r4, EPSR(r16)
 	orh	h%NDFW_MAGIC, r0, r4
 	or	l%NDFW_MAGIC, r4, r4
 	st.l	r4, READY(r16)

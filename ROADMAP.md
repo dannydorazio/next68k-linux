@@ -22,6 +22,9 @@ tooling in this directory; emulator patches in `previous/`.
 - Part 2, step 10.6 (NeXTdimension): done (Done, step 16). A DRM driver
   for the board's 32-bit display, whose console the board's i860 draws
   with our own firmware: scrolling is a copy on the board.
+- NeXTdimension in `/proc/hardware` and fastfetch (Done, step 18): the
+  board's slot, processor (from the i860's EPSR), memory (sized at boot)
+  and display. The i860 doesn't start after a warm reboot: see Open issues.
 - Licensing (Done, step 17): this tree is GPL-2.0 (`LICENSE`). The
   NeXTdimension facts first read in NeXT's unlicensed, confidential
   sources are now cited from the Bt463 data sheet, `tgafb` and experiment
@@ -62,6 +65,39 @@ tooling in this directory; emulator patches in `previous/`.
   files whose names differ only in case (netfilter's `xt_DSCP.c` and
   `xt_dscp.c`, ...) are marked `skip-worktree`, since they can't both
   exist there.
+
+## Open issues
+
+Known problems and loose ends, newest first. Each says where it was found;
+when one is fixed, move what was learned into that step's Done section and
+delete it here.
+
+- **NeXTdimension: the i860 doesn't start after a warm reboot.** After
+  `systemctl reboot` the driver waits out its timeout (logged 100 s into
+  the boot, though the limit is 10 s of 1-2 ms sleeps: why it takes ten
+  times longer is part of the question), logs
+  `the i860 didn't start (-110)` and draws with the CPU, so the console is
+  slow and `/proc/hardware` shows a plain `i860`. A fresh start of
+  Previous is fine. Only the 68040 is reset on a reboot: the i860 is still
+  in our firmware from the last boot when the driver writes the CSR0 reset
+  bit. Things to check: whether Previous's CSR0 reset (`nd_devs.cpp`) puts
+  the i860 back into its ROM as on power-on, what state the ROM expects
+  (interrupt bits left set in CSR0 or CSR1?), and whether a real board
+  behaves the same. Not caused by step 18's memory probe, but not yet
+  checked with a kernel from before it. Found in step 18.
+- **NeXTdimension, unconfirmed on real hardware:** sync on green (`0x203`
+  = `0x80`), whether the ROM leaves the i860's caches on (which would break
+  the shared ring), and how a bank of DRAM that isn't there answers the
+  memory probe. Steps 17 and 18.
+- **Overnight soak test** postponed: `scripts/soak-server.sh` on the host,
+  `tests/soak.sh` on the NeXT, at `FAST=0`. Part 1, step 6.
+- **Full Debian upgrade:** retry `apt-get update && apt-get -y
+  dist-upgrade` once sid has newer packages; `out/disk.img.pre-upgrade` is
+  the rollback. Step 10.
+- **Disk request stuck in D state,** seen once on the 68030 and not
+  reproduced. Step 14.
+- **`/proc/hardware` memory banks in whole MB** show the NeXTcube's 65528K
+  as "63 MB"; printing KB would be better. Step 8.
 
 ## Done
 
@@ -797,6 +833,41 @@ taken from NeXT's sources now come from.
   its packages.
 - **Tested:** none of this changes code, only comments and documentation
   (the kernel's `nextdimension.c` comments included).
+
+### 18. NeXTdimension in `/proc/hardware` and fastfetch
+
+- **Kernel** (`arch/m68k/next/config.c`): `next_slots_init()` remembers
+  each slot's NBIC ID, and for a NeXTdimension sizes its DRAM:
+  `next_nd_bank_mb()` writes a mark every 4 MB of each bank's 16 MB, the
+  first last, counts the marks that survive (a 4 MB bank repeats, an empty
+  one keeps nothing) and puts the old contents back. `/proc/hardware` gets
+  a line per occupied slot, e.g. `Slot 2: NeXTdimension: i860XR stepping
+  6 at 33 MHz, 64 MB memory, 4 MB video memory, 1120x832 32-bit color
+  display`. The boot message became `NeXT: NeXTdimension in slot 2, 64 MB`.
+- **What's detected:** the board and its slot (NBIC ID), its memory (the
+  probe) and the processor: the firmware (`nd-firmware/ndfw.s`) stores the
+  i860's extended processor status register at shared `+12` before READY,
+  and the driver hands it to `next_nd_set_epsr()` in `config.c`, which
+  decodes the type (bits 7-0: 1 is the XR, 2 the XP) and stepping (bits
+  12-8; Intel's i860 manuals; Previous reports `0x00040601`, an XR at
+  stepping 6). Until the driver has run the i860 the line says just
+  `i860`. The 33 MHz clock, the 4 MB of video memory and the display mode
+  are the same on every board and are nominal, not detected.
+- **Debian:** `debian-root/etc/xdg/fastfetch/config.jsonc` adds a second
+  Display line for the board and a NeXTdimension line (`Intel i860XR
+  (stepping 6) @ 33 MHz, 64 MB + 4 MB VRAM (slot 2)`); both are empty, so
+  hidden, without a board.
+- **Tested** on a NeXTcube Turbo with a 64 MB board (`ND_BANK=16`, kernels
+  #81 and #83 installed with `dpkg -i`): `/proc/hardware` and fastfetch
+  show the board, with `i860XR stepping 6` from the EPSR (#83); the i860
+  still runs the console after a fresh start.
+- **Found:** after `systemctl reboot` the i860 didn't start (the driver
+  timed out after about 100 s and drew with the CPU). Only the 68040 is
+  reset then; the i860 is still in our firmware from the last boot. The
+  memory probe can't be the cause (the i860 starts after a fresh start
+  with it, and the firmware never touches the marks), so this most likely
+  predates step 18, but it wasn't checked with an older kernel. Not yet
+  investigated.
 
 ### Tooling
 
