@@ -238,3 +238,12 @@ Debian, on the NeXTcube (also with a NeXTdimension), NeXTstation (32 MB),
 NeXTstation Color, NeXTstation Turbo, NeXTstation Turbo Color and NeXTcube
 Turbo, and the 68030 NeXT Computer (a full systemd boot to a login in about 21 emulated minutes); not on real
 hardware. See `ROADMAP.md` for what's next.
+
+## License
+
+Everything in this tree is GPL-2.0 (`LICENSE`), like the kernel; the
+loader and most tests also say so in SPDX tags. `previous/previous-linux.patch` is a
+patch to Previous and is GPL-2 like it. NetBSD's next68k port, NeXT's
+NeXTdimension sources and Previous were used as references, not copied:
+`ROADMAP.md` (Done, step 17) says what each one's license means here and
+where the facts taken from NeXT's sources are now cited from.
