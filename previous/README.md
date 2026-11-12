@@ -19,6 +19,7 @@ it changes and why. `previous.cfg.in` is the configuration
 | `0008-idle-stop` | A CPU stopped by STOP skips to the next event | Maybe |
 | `0009-fast-forward` | `PREVIOUS_FAST_FORWARD=N` runs up to N times real time | Maybe |
 | `0010-i860-speed` | `PREVIOUS_I860_SPEED=N` gives the NeXTdimension's i860 N times a 33 MHz one's cycles (`max`: no limit); `PREVIOUS_I860_STATS=1` reports how many it ran | Maybe |
+| `0011-m68060` | A 68060 in place of the 68040 (`nCpuLevel = 5`) on the Turbos: WinUAE's 68060 core built and timed, MSP and ISP kept for the ROM, an FPU without the 68060's gaps, the ROM's bus error handler patched for the 68060's frame | No: NeXT never made one |
 
 Not patched yet: the built-in NFS server drops pipelined requests over TCP
 (use UDP), to be reported.

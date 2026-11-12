@@ -17,7 +17,9 @@
 # MACHINE picks the emulated machine: cube (default; NeXTcube, 68040,
 # 64 MB), station (NeXTstation, 32 MB), color (NeXTstation Color, 32 MB),
 # turbo, turbo-color and cube-turbo (33 MHz, 128 MB), or cube030 (the
-# original NeXT Computer: 68030 and 68882, 64 MB).
+# original NeXT Computer: 68030 and 68882, 64 MB).  CPU=68060 puts a 68060
+# in a Turbo (turbo, turbo-color or cube-turbo), a machine NeXT never made
+# (Previous patch 0011; the Linux kernel needs M68060).
 #
 # ND=1 puts a NeXTdimension board (16 MB, Previous's ROM) in slot 2 of a
 # cube and shows its screen instead of the built-in display's, also in
@@ -96,6 +98,16 @@ fi
 if [ $turbo = TRUE ]; then
 	bank=32 cpufreq=33 rtc=TRUE
 fi
+case ${CPU:-default} in
+default)	;;
+68060)	if [ $turbo != TRUE ]; then
+		echo "CPU=68060 needs a Turbo's ROM (MACHINE=turbo," \
+			"turbo-color or cube-turbo)" >&2
+		exit 1
+	fi
+	cpulevel=5 ;;
+*)	echo "CPU must be 68060" >&2; exit 1 ;;
+esac
 
 top=$(cd "$(dirname "$0")/.." && pwd)
 previous=${PREVIOUS:-$top/../trunk/build/src/Previous.app/Contents/MacOS/Previous}

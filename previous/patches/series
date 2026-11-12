@@ -8,3 +8,4 @@
 0008-idle-stop.patch -p0
 0009-fast-forward.patch -p0
 0010-i860-speed.patch -p0
+0011-m68060.patch -p0
