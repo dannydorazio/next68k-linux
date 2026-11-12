@@ -1,0 +1,5 @@
+# busybox init: a root shell on the first serial port
+::sysinit:/etc/init.d/rcS
+ttyPZ0::respawn:-/bin/sh
+::ctrlaltdel:/bin/reboot
+::shutdown:/bin/umount -a -r

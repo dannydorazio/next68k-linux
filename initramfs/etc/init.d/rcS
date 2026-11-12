@@ -1,0 +1,18 @@
+#!/bin/sh
+# Early userspace for Linux on NeXT.
+
+/bin/busybox --install -s
+
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+# the kernel mounts devtmpfs itself when the root is on a disk
+mountpoint -q /dev || mount -t devtmpfs devtmpfs /dev
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts
+mount -t tmpfs tmpfs /tmp
+
+hostname next
+
+echo
+echo "Linux $(uname -r) on $(sed -n 's/^Model:[[:space:]]*//p' /proc/hardware)"
+echo
