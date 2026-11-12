@@ -21,7 +21,8 @@
 #
 # ND=1 puts a NeXTdimension board (16 MB, Previous's ROM) in slot 2 of a
 # cube and shows its screen instead of the built-in display's, also in
-# scripts/screenshot.sh.
+# scripts/screenshot.sh.  ND_BANK=16 gives the board 4 x 16 MB, the most
+# Previous allows (default 4: 4 x 4 MB).
 #
 # FAST=N (default 8) lets the emulated machine run up to N times as fast as
 # real time (PREVIOUS_FAST_FORWARD), when the host can keep up; FAST=max
@@ -44,10 +45,15 @@ scsi=TRUE	# NCR53C90A (FALSE: NCR53C90)
 rtc=FALSE	# MC68HC68T1 (TRUE: MCS1850); both are booleans to Previous
 dspmem=TRUE
 nd=FALSE
+ndbank=${ND_BANK:-4}
 screenslot=0
 if [ "${ND:-0}" = 1 ]; then
 	nd=TRUE screenslot=2
 fi
+case $ndbank in
+4|16)	;;
+*)	echo "ND_BANK must be 4 or 16" >&2; exit 1 ;;
+esac
 case ${BOOT:-net} in
 net)	bootdev=2 ;;
 disk)	bootdev=1 ;;
@@ -96,7 +102,8 @@ sed -e "s|@TOP@|$top|g" -e "s|@MACHINETYPE@|$machinetype|" -e "s|@NBIC@|$nbic|" 
 	-e "s|@TURBO@|$turbo|" -e "s|@CPULEVEL@|$cpulevel|" \
 	-e "s|@CPUFREQ@|$cpufreq|" -e "s|@FPU@|$fpu|" -e "s|@SCSI@|$scsi|" \
 	-e "s|@RTC@|$rtc|" -e "s|@DSPMEM@|$dspmem|" \
-	-e "s|@ND@|$nd|" -e "s|@SCREENSLOT@|$screenslot|" \
+	-e "s|@ND@|$nd|" -e "s|@NDBANK@|$ndbank|" \
+	-e "s|@SCREENSLOT@|$screenslot|" \
 	"$top/previous/previous.cfg.in" > "$cfgdir/previous.cfg"
 : > "$top/out/serial-a.log"
 : > "$top/out/serial-b.log"

@@ -76,7 +76,8 @@ gives a NeXTstation, which Previous limits to 32 MB, `MACHINE=color` a
 NeXTstation Color (8 MB SIMMs, 32 MB), `MACHINE=turbo`, `turbo-color` or
 `cube-turbo` a 33 MHz Turbo with 128 MB, and `MACHINE=cube030` the original
 68030 NeXT Computer (its 1.0 ROM). `ND=1` adds a NeXTdimension board in
-slot 2 of a cube and shows its screen instead of the built-in one.
+slot 2 of a cube and shows its screen instead of the built-in one; it has
+16 MB, or 64 MB with `ND_BANK=16`.
 
 The emulator runs up to 8 times faster than real time (`FAST=8`, the
 default; `FAST=max` for no limit, `FAST=0` for real time). Inside the

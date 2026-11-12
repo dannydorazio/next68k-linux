@@ -740,7 +740,10 @@ screenshots.
   - text, colours, `drmtest` and the return to the console all check out
     on screenshots;
   - booting from disk with the cable out works;
-  - a cube without the board is unaffected.
+  - a cube without the board is unaffected;
+  - a NeXTcube Turbo (33 MHz, 128 MB) with the board at its largest, 4 ×
+    16 MB (`ND_BANK=16`), boots Debian from disk at `FAST=0` to a login
+    on the board's screen in 270 s (2026-11-11).
 - **Limits:**
   - while the ring is full, the CPU waits (the console can't sleep);
   - scrolling is bound by how fast Previous emulates the i860: about 27 ms
