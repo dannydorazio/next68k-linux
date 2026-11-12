@@ -1,0 +1,9 @@
+! xterm: JetBrains Mono Nerd Font through Xft (installed by hand into
+! /usr/local/share/fonts: see README.md).  Without it, fontconfig picks
+! another monospaced font (DejaVu Sans Mono).  The locale is C, which
+! xterm would follow into Latin-1 (locale "medium"), and the font's icons
+! need UTF-8: take UTF-8 regardless.
+XTerm*faceName:	JetBrainsMono Nerd Font Mono
+XTerm*faceSize:	11
+XTerm*locale:	false
+XTerm*utf8:	always

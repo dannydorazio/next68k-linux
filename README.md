@@ -21,6 +21,8 @@ branch of https://github.com/dannydorazio/linux (`arch/m68k/next/`,
 | `scripts/build-initramfs.sh` | Builds `out/initramfs.cpio.gz`: static busybox (Debian Ports) + `initramfs/` + executables in `tests/` |
 | `scripts/build-disk.sh` | Builds `out/disk.img`, a NeXT-labelled SCSI disk: `busybox` (default, 128 MB, partition a = ext4 with the busybox root) or `debian` (2 GB, a = `out/debian-root.img` grown to fit, b = 224 MB swap, c = 32 MB boot partition with the image's kernel, and the loader in the boot blocks, so it boots without the network). Won't replace an existing disk without `FORCE=1` (the old one becomes `out/disk.img.old`) |
 | `scripts/update-disk.sh` | Copies `debian-root/` into the existing `out/disk.img`, keeping installed packages and apt state |
+| `scripts/install-packages.sh` | Installs Debian packages into the existing `out/disk.img` on the host (apt under qemu-user), keeping everything else; not kernel packages |
+| `scripts/build-dockapps.sh` | Builds the wmoiia and wmaapl dockapps from `../powerbook-debian/tools` for m68k on the host, into `out/dockapps/` |
 | `scripts/mkdisk.py` | Writes a NeXT disk label (`dlV3`) around partition images, optionally adding a swap partition (`--swap MB`), a boot partition (`--boot MB`) and boot blocks (`--bootblock`); the image stays sparse |
 | `scripts/nextboot.py` | For an existing disk: `setup` writes the boot blocks and adds the boot partition (taken from the end of swap if the disk is full), `kernel` writes a kernel ELF file, optional initrd and command line into it |
 | `scripts/build-kernel-deb.sh` | Packages the kernel as `out/debs/linux-image-*.deb` (`make bindeb-pkg`) |
@@ -135,11 +137,18 @@ the end of swap and rewrites the swap header.
 
 The disk keeps what you install and change on the NeXT. Netbooting doesn't
 use the kernel on it, and `./scripts/update-disk.sh` copies
-changes in `debian-root/` into it. Packages are much quicker to add to
-`debian-packages` and rebuild with than to install on the NeXT, where every
-apt run that changes the dpkg database takes many minutes at 25 MHz.
+changes in `debian-root/` into it. Packages are much quicker to install
+on the host than on the NeXT, where every apt run that changes the dpkg
+database takes many minutes at 25 MHz: with the NeXT powered off,
+`./scripts/install-packages.sh PACKAGE...` installs them into the disk
+(140 packages for X and WindowMaker took about 3 minutes), and listing
+them in `debian-packages` puts them in the next image built. Kernel
+packages are the exception: install those on the NeXT (`dpkg -i`), whose
+hook writes the boot partition.
 
-The screen shows a login prompt too (`getty@tty1`), and the NeXT keyboard
+The screen shows a login prompt too (`getty@tty1`), then xdm's graphical
+login on vt7 once X has started (a few minutes at 33 MHz), which starts
+WindowMaker (root, "next"); the NeXT keyboard
 and mouse work: type into Previous's window, or use `scripts/input.sh`
 when there is no window to type into. Add `console=tty0` before `console=ttyPZ0,9600` to get kernel
 messages on it as well; the console scrolls at about 30–50 ms per line at
@@ -149,6 +158,28 @@ on a NeXTstation Color, but Debian on 32 MB thrashes until swap is on (see
 the display there. While the emulator fast-forwards, a sleeping guest's
 clock runs ahead of the wall clock, so a program that shows something "for
 10 seconds" may be gone before you look.
+
+xterm uses JetBrains Mono Nerd Font (`debian-root/etc/X11/Xresources/xterm-next`,
+always UTF-8, since the locale is C). The font isn't packaged in Debian, so
+it's installed by hand: from `JetBrainsMono.tar.xz` of Nerd Fonts v3.5.1
+(https://github.com/ryanoasis/nerd-fonts/releases), copy the four
+`JetBrainsMonoNerdFontMono-{Regular,Bold,Italic,BoldItalic}.ttf`, and
+`JetBrainsMonoNLNerdFontMono-{Regular,Bold}.ttf` for the dockapps below,
+to `/usr/local/share/fonts/jetbrains-mono-nerd/` on the NeXT and run
+`fc-cache /usr/local/share/fonts`. Without it xterm falls back to DejaVu
+Sans Mono.
+
+Two Window Maker dockapps from `../powerbook-debian/tools` run on it too:
+wmoiia (the OIIA cat; click him) and wmaapl (the AAPL quote, from Yahoo
+Finance every 5 minutes). `./scripts/build-dockapps.sh` builds them for
+m68k on the host into `out/dockapps/` (in a Debian m68k chroot under
+qemu-user, kept as `out/m68k-dev.tar.gz`) and lists the packages they need
+in `out/dockapps/runtime-packages`. On the NeXT, install the missing ones
+(`apt-get install libdockapp3 libcjson1 libcurl4t64`), copy the binaries
+to `/usr/local/bin`, and start them in the X session (`wmoiia &`, `wmaapl
+-r &`); drag them onto the dock and set "Start when Window Maker is
+started" to keep them. Their sources stay in that repository: wmoiia's
+sprite comes from a photo of someone's cat.
 
 At real speed (`FAST=0`), a first boot takes about 7 minutes to `login:`,
 and logging in another minute and a half; with the default fast-forward,

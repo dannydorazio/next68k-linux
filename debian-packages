@@ -3,3 +3,13 @@
 # much faster than apt on the emulated 25 MHz machine.
 strace
 fastfetch
+# X with WindowMaker: X on /dev/dri/card0 (modesetting; see
+# debian-root/etc/X11/xorg.conf.d), xdm on vt7, and WindowMaker as the
+# x-window-manager its sessions start.  X needs the core fonts' "fixed".
+xserver-xorg-core
+xserver-xorg-input-libinput
+xdm
+wmaker
+xterm
+xfonts-base
+x11-xserver-utils

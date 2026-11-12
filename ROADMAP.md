@@ -25,6 +25,10 @@ tooling in this directory; emulator patches in `previous/`.
 - NeXTdimension in `/proc/hardware` and fastfetch (Done, step 18): the
   board's slot, processor (from the i860's EPSR), memory (sized at boot)
   and display. The i860 doesn't start after a warm reboot: see Open issues.
+- X and WindowMaker (Done, step 19): xdm on the screen, WindowMaker as
+  the session, installed on the host into `out/disk.img`
+  (`scripts/install-packages.sh`). Tested on the NeXTcube Turbo with a
+  NeXTdimension at `FAST=0`.
 - Licensing (Done, step 17): this tree is GPL-2.0 (`LICENSE`). The
   NeXTdimension facts first read in NeXT's unlicensed, confidential
   sources are now cited from the Bt463 data sheet, `tgafb` and experiment
@@ -868,6 +872,56 @@ taken from NeXT's sources now come from.
   with it, and the firmware never touches the marks), so this most likely
   predates step 18, but it wasn't checked with an older kernel. Not yet
   investigated.
+
+### 19. X and WindowMaker
+
+- **Installing:** `scripts/install-packages.sh` installs packages into the
+  existing `out/disk.img` on the host, with apt under qemu-user in Docker
+  (the way `build-debian.sh` does for new images), keeping the rest of the
+  disk. It starts no services (`policy-rc.d`) and refuses kernel packages,
+  whose hook would write the container's `/dev/sda3`. X, xdm, WindowMaker,
+  xterm, the core fonts and the X utilities came to 140 packages
+  (`--no-install-recommends`), installed in 3 minutes 15 seconds, with no
+  upgrades; the root file system went from 506 to 670 MB. They're also in
+  `debian-packages` now. `out/disk.img.pre-windowmaker` (an APFS clone) is
+  the image before.
+- **X** uses the modesetting driver on `/dev/dri/card0`, the
+  NeXTdimension's when there is one (it registers first). Colours are
+  right since both drivers set `quirk_addfb_prefer_host_byte_order`.
+  `debian-root/etc/X11/xorg.conf.d/20-next.conf`:
+  - `AccelMethod none`: otherwise glamor draws through Mesa's software
+    OpenGL (softpipe), which took 70 s just to start, long enough for xdm
+    to give up ("Hung in XOpenDisplay"); without it X starts in about 12 s;
+  - `AutoAddGPU false`: otherwise the built-in display is added as a second
+    GPU, which X spent another minute setting up.
+- **xdm** runs X on vt7 and starts `x-window-manager`, which is WindowMaker.
+  The greeter's first start took about 4 minutes while fontconfig built its
+  cache (`/var/cache/fontconfig`); later ones don't.
+- **Tested** on the NeXTcube Turbo with a 64 MB NeXTdimension at `FAST=0`:
+  the greeter on the board's screen, a login as root typed through
+  `scripts/input.sh`, WindowMaker's desktop and dock; 37 of 121 MB in use.
+  The config was installed while xdm was running and xdm restarted (an
+  old xdm still held `/var/run/xdm.pid`, so the first restart failed); a
+  boot straight into the greeter with it in place hasn't been timed yet.
+- **xterm font:** JetBrains Mono Nerd Font (v3.5.1, the "Mono" variant,
+  whose icons are one cell wide) in `/usr/local/share/fonts`, installed by
+  hand (README.md), and `debian-root/etc/X11/Xresources/xterm-next`, which
+  Debian's Xsession merges at login. The locale is C, so xterm's `locale`
+  resource (default `medium`) put it in Latin-1 and `utf8: always` alone
+  didn't help: `locale: false` does. Loaded into a running session with
+  `xrdb -merge`; tested by printing Nerd Font icons in a new xterm.
+- **Dockapps** wmoiia and wmaapl from `../powerbook-debian/tools`, built on
+  the host by `scripts/build-dockapps.sh` (4 minutes the first time, with
+  the m68k chroot) with no warnings. Their libraries (`libdockapp3`,
+  `libcjson1`, `libcurl4t64`, 11 packages with dependencies) took 10
+  minutes with apt on the running NeXT. Both ask for `JetBrainsMonoNL Nerd
+  Font Mono`; without it fontconfig gave them DejaVu Sans Mono and wmaapl's
+  Apple logo was a box. Tested at `FAST=0`: the quote fetched over HTTPS
+  from Yahoo Finance with its sparkline, and the cat. They were started by
+  hand and aren't docked yet, so they won't come back after a reboot.
+- **Not tried:** the built-in displays (2-bit grayscale needs X in a
+  format the mono driver converts: XRGB8888 is offered), the 25 MHz
+  machines, the 68030.
 
 ### Tooling
 
