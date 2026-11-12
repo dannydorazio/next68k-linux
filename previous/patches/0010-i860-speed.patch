@@ -1,0 +1,123 @@
+NeXTdimension: let the i860 run faster than 33 MHz
+
+PREVIOUS_I860_SPEED=N gives the i860 N times the cycles a 33 MHz one has
+in emulated time (the budget ND_VBL_Handler hands out every half frame),
+as far as the host keeps up; "max" removes the limit.  The default, 1, is
+as before.  Without a thread of its own (bI860Thread off), the i860's
+cycles scale the same way, "max" as 64.
+
+PREVIOUS_I860_STATS=1 prints the cycles a second the i860 ran, every 5
+seconds of host time, to see what the host keeps up with.
+
+--- src/dimension/dimension.cpp
++++ src/dimension/dimension.cpp
+@@ -5,7 +5,9 @@
+   or at your option any later version. Read the file gpl.txt for details.
+ */
+ 
++#include <limits.h>
+ #include <stdlib.h>
++#include <string.h>
+ 
+ #include "main.h"
+ #include "event.h"
+@@ -314,7 +316,27 @@
+ 
+     return i860.handle_msgs(msg);
+ }
++
++/*
++ * PREVIOUS_I860_SPEED=N gives the i860 N times the cycles a 33 MHz one
++ * has in emulated time, as far as the host keeps up; "max" puts no limit
++ * on it.  By default (1) it gets 33 million a second.
++ */
++int nd_i860_speed(void) {
++    static int speed = -1;
+ 
++    if (speed < 0) {
++        const char* s = getenv("PREVIOUS_I860_SPEED");
++
++        speed = 1;
++        if (s && !strcmp(s, "max"))
++            speed = 0;
++        else if (s && atoi(s) > 0)
++            speed = atoi(s) < 1000 ? atoi(s) : 1000;
++    }
++    return speed;
++}
++
+ extern "C" {
+     void ND_VBL_Handler(void) {
+         static bool bBlankToggle = false;
+@@ -334,7 +356,8 @@
+             IF_NEXT_DIMENSION(slot, nd) {
+                 nd->display_vbl = bBlankToggle;
+                 nd->send_msg(MSG_DISPLAY_BLANK);
+-                host_atomic_set(&nd->i860.i860cycles, (1000*1000*33)/136);
++                host_atomic_set(&nd->i860.i860cycles, nd_i860_speed() ?
++                                (1000*1000*33)/136 * nd_i860_speed() : INT_MAX/2);
+             }
+         }
+         bBlankToggle = !bBlankToggle;
+--- src/dimension/dimension.hpp
++++ src/dimension/dimension.hpp
+@@ -20,6 +20,8 @@
+ #define ND_LOG_IO_WR LOG_NONE
+ 
+ #ifdef __cplusplus
++int nd_i860_speed(void);
++
+ extern "C" {
+ #endif /* __cplusplus */
+     typedef void (*i860_run_func)(int);
+--- src/dimension/i860.cpp
++++ src/dimension/i860.cpp
+@@ -16,6 +16,7 @@
+ ***************************************************************************/
+ 
+ #include <stdlib.h>
++#include <chrono>
+ #if defined _WIN32
+ #undef mkdir
+ #endif
+@@ -47,6 +48,7 @@
+                 
+                 cycles = nHostCycles * 33; // i860 @ 33MHz
+                 cycles /= ConfigureParams.System.nCpuFreq;
++                cycles *= nd_i860_speed() ? nd_i860_speed() : 64;
+                 while (cycles > 0) {
+                     nd->i860.run_cycle();
+                     cycles --;
+@@ -575,7 +577,15 @@
+     return true;
+ }
+ 
++/*
++ * PREVIOUS_I860_STATS=1 prints how many cycles a second the i860 ran, every
++ * 5 seconds of host time it ran at all.
++ */
+ void i860_cpu_device::run() {
++    const bool stats = getenv("PREVIOUS_I860_STATS") != NULL;
++    auto start = std::chrono::steady_clock::now();
++    uint64_t ran = 0;
++
+     while(nd->handle_msgs()) {
+         
+         /* Sleep a bit if halted */
+@@ -590,6 +600,16 @@
+                 run_cycle();
+             
+             host_atomic_add(&i860cycles, -16);
++            if (stats && (ran += 16) % (1 << 22) == 0) {
++                auto now = std::chrono::steady_clock::now();
++                double s = std::chrono::duration<double>(now - start).count();
++
++                if (s >= 5) {
++                    fprintf(stderr, "[i860] %.1f M cycles/s\n", ran / s / 1e6);
++                    start = now;
++                    ran = 0;
++                }
++            }
+         } else {
+             host_sleep_ms(1);
+         }

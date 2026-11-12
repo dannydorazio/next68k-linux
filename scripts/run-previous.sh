@@ -22,7 +22,12 @@
 # ND=1 puts a NeXTdimension board (16 MB, Previous's ROM) in slot 2 of a
 # cube and shows its screen instead of the built-in display's, also in
 # scripts/screenshot.sh.  ND_BANK=16 gives the board 4 x 16 MB, the most
-# Previous allows (default 4: 4 x 4 MB).
+# Previous allows (default 4: 4 x 4 MB).  ND_SLOTS="4" puts it in slot 4
+# instead, ND_SLOTS="2 4" puts one in each; the screen shown is the first's.
+#
+# I860=N (default 1) lets the NeXTdimension's i860 execute N times as many
+# instructions as a 33 MHz one would (PREVIOUS_I860_SPEED), when the host
+# can keep up; I860=max removes the limit.
 #
 # FAST=N (default 8) lets the emulated machine run up to N times as fast as
 # real time (PREVIOUS_FAST_FORWARD), when the host can keep up; FAST=max
@@ -44,11 +49,20 @@ fpu=68040
 scsi=TRUE	# NCR53C90A (FALSE: NCR53C90)
 rtc=FALSE	# MC68HC68T1 (TRUE: MCS1850); both are booleans to Previous
 dspmem=TRUE
-nd=FALSE
+nd=FALSE nd0=FALSE nd1=FALSE nd2=FALSE
 ndbank=${ND_BANK:-4}
 screenslot=0
 if [ "${ND:-0}" = 1 ]; then
-	nd=TRUE screenslot=2
+	for slot in ${ND_SLOTS:-2}; do
+		case $slot in
+		2)	nd0=TRUE ;;
+		4)	nd1=TRUE ;;
+		6)	nd2=TRUE ;;
+		*)	echo "ND_SLOTS takes slots 2, 4 and 6" >&2; exit 1 ;;
+		esac
+		[ $screenslot != 0 ] || screenslot=$slot
+	done
+	nd=TRUE
 fi
 case $ndbank in
 4|16)	;;
@@ -102,7 +116,8 @@ sed -e "s|@TOP@|$top|g" -e "s|@MACHINETYPE@|$machinetype|" -e "s|@NBIC@|$nbic|" 
 	-e "s|@TURBO@|$turbo|" -e "s|@CPULEVEL@|$cpulevel|" \
 	-e "s|@CPUFREQ@|$cpufreq|" -e "s|@FPU@|$fpu|" -e "s|@SCSI@|$scsi|" \
 	-e "s|@RTC@|$rtc|" -e "s|@DSPMEM@|$dspmem|" \
-	-e "s|@ND@|$nd|" -e "s|@NDBANK@|$ndbank|" \
+	-e "s|@ND0@|$nd0|" -e "s|@ND1@|$nd1|" -e "s|@ND2@|$nd2|" \
+	-e "s|@NDBANK@|$ndbank|" \
 	-e "s|@SCREENSLOT@|$screenslot|" \
 	"$top/previous/previous.cfg.in" > "$cfgdir/previous.cfg"
 : > "$top/out/serial-a.log"
@@ -112,6 +127,7 @@ mkfifo "$top/out/input"
 echo $$ > "$top/out/previous.pid"	# exec keeps the PID
 
 export PREVIOUS_FAST_FORWARD=${FAST:-8}
+export PREVIOUS_I860_SPEED=${I860:-1}
 
 HOME="$home" \
 PREVIOUS_SCC_A_LOG="$top/out/serial-a.log" \

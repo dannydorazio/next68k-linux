@@ -18,6 +18,7 @@ it changes and why. `previous.cfg.in` is the configuration
 | `0007-cpu-setjmp` | `_setjmp`/`_longjmp` in the CPU core's exception macros | Maybe |
 | `0008-idle-stop` | A CPU stopped by STOP skips to the next event | Maybe |
 | `0009-fast-forward` | `PREVIOUS_FAST_FORWARD=N` runs up to N times real time | Maybe |
+| `0010-i860-speed` | `PREVIOUS_I860_SPEED=N` gives the NeXTdimension's i860 N times a 33 MHz one's cycles (`max`: no limit); `PREVIOUS_I860_STATS=1` reports how many it ran | Maybe |
 
 Not patched yet: the built-in NFS server drops pipelined requests over TCP
 (use UDP), to be reported.
@@ -30,7 +31,7 @@ make -C build                                                             # see 
 # change ../trunk, then rewrite the patch the change belongs to:
 python3 previous/patches.py refresh 0004-ethernet-wire-speed
 # or start a new one, added at the end of the series:
-python3 previous/patches.py refresh 0010-something-new
+python3 previous/patches.py refresh 0011-something-new
 ```
 
 `refresh` works out the patch from the pristine sources and the other
