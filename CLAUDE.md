@@ -15,8 +15,8 @@ Sibling checkouts next to this one (`~/git/`):
 |---|---|
 | `../linux` | The kernel: local branch `next68k`, tracking `origin/next68k-linux` on github.com/dannydorazio/linux; the Torvalds tree is the `upstream` remote. The NeXT code is `arch/m68k/next/`, `arch/m68k/include/asm/nexthw.h` and the drivers listed under Status in `README.md`. |
 | `../trunk` | Previous, SVN trunk r1864 (https://svn.code.sf.net/p/previous/code/trunk), with `previous/previous-linux.patch` applied, built in `../trunk/build`. |
-| `../NeXTDimension` | NeXT's NeXTdimension sources (github.com/johnsonjh/NeXTDimension): i860 ROM, kernel, host driver. Reference only. |
-| `../src/sys/arch/next68k` | NetBSD's next68k port. Reference only. |
+| `../NeXTDimension` | NeXT's NeXTdimension sources (github.com/johnsonjh/NeXTDimension): i860 ROM, kernel, host driver. Unlicensed and marked confidential by NeXT: never copy from it, and cite public sources (data sheets, Previous, experiment) rather than it. |
+| `../src/sys/arch/next68k` | NetBSD's next68k port. Reference only; some files carry the 4-clause BSD license, which the GPL can't take. |
 
 In this repository: `README.md` (usage, layout, status), `ROADMAP.md` (plan,
 and what was done and learned in each step), `docs/setup.md` (building

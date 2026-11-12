@@ -1,9 +1,10 @@
 //	i860 firmware for Linux's NeXTdimension driver (nextdimension.c)
 //
 //	The board's ROM branches here, to the start of its DRAM, when the
-//	host interrupts it after loading this.  It runs uncached and
-//	without paging.  It takes drawing commands for the video memory from
-//	a ring in DRAM that the host fills, and never returns.
+//	host interrupts it after loading this.  It runs without paging, on
+//	the board's physical addresses.  It takes drawing commands for the
+//	video memory from a ring in DRAM that the host fills, and never
+//	returns.
 //
 //	Shared area, at DRAM offset 0x8000:
 //	  +0  READY	this writes NDFW_MAGIC once it's running

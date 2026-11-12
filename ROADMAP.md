@@ -22,6 +22,11 @@ tooling in this directory; emulator patches in `previous/`.
 - Part 2, step 10.6 (NeXTdimension): done (Done, step 16). A DRM driver
   for the board's 32-bit display, whose console the board's i860 draws
   with our own firmware: scrolling is a copy on the board.
+- Licensing (Done, step 17): this tree is GPL-2.0 (`LICENSE`). The
+  NeXTdimension facts first read in NeXT's unlicensed, confidential
+  sources are now cited from the Bt463 data sheet, `tgafb` and experiment
+  in Previous. Still unconfirmed by any public source: sync on green, and
+  whether the ROM leaves the i860's caches on.
 - Part 2, step 10.5 (polish in the emulator): done (Done, step 15). The
   run script had given every machine the wrong SCSI chip and the Turbos the
   wrong clock; the Ethernet driver recovers the frames it used to drop; an
@@ -685,9 +690,9 @@ NCR 53C90, 64 MB).
 
 ### 16. NeXTdimension (Part 2, step 10.6)
 
-NeXT's sources for the board (https://github.com/johnsonjh/NeXTDimension,
-cloned to `../NeXTDimension`) gave the RAMDAC setup and the ROM's boot
-handshake. Previous emulates the board. `ND=1` in `run-previous.sh` puts
+The RAMDAC setup and the ROM's boot handshake were first read from NeXT's
+sources for the board; step 17 re-sourced both from Brooktree's data sheet,
+`tgafb` and experiment in Previous, which emulates the board. `ND=1` in `run-previous.sh` puts
 one in slot 2 of a cube and shows its screen in the main window and in
 screenshots.
 
@@ -701,8 +706,8 @@ screenshots.
     pixel is a big-endian word of red, green, blue and an unused byte:
     `XBGR8888` in DRM's terms. XRGB8888 in either byte order is
     converted.
-  - The Bt463 RAMDAC is set up as NeXT's driver did, with a linear
-    palette.
+  - The Bt463 RAMDAC is set up for 24-bit true color through a linear
+    palette (the register values are in `docs/hardware.md`).
   - The memory controller unblanks the screen. Its registers are
     big-endian, while `writel()` is little-endian on m68k.
 - **Acceleration.** The console is drawn by the board's i860.
@@ -743,6 +748,52 @@ screenshots.
   - DRM clients other than the console still copy with the CPU;
   - one board (slot 2) has been tested, and the ROM handshake has never
     run on real hardware.
+
+### 17. Licensing and provenance
+
+What each reference's license means for this work, and where the facts
+taken from NeXT's sources now come from.
+
+- **Our code** is GPL-2.0 throughout: `LICENSE` at the top of this tree,
+  SPDX tags in the loader, most tests and every kernel file (the scripts,
+  `ndfw.s` and the config files have none yet). Comparing every line of 30 characters or more in the
+  loader, the firmware, the scripts, the tests and the kernel's NeXT files
+  against NetBSD's next68k and m68k code and NeXT's NeXTdimension tree
+  found one shared line, a register address (`SCR2_RTDATA`). The keyboard
+  map is a Linux scancode-to-`KEY_*` table, not NetBSD's wskbd map.
+- **NetBSD next68k** is BSD-licensed and was used as documentation only.
+  Rolf Grossmann's `stand/boot/*` and Matt DeBergalis's `nextkbd.c` and
+  `nextdisplay.c` carry the 4-clause advertising clause, which is
+  incompatible with the GPL: never copy from them. The NetBSD Foundation's
+  and Darrin Jewell's files are 2-clause.
+- **NeXT's NeXTdimension sources** (github.com/johnsonjh/NeXTDimension)
+  have no license; 57 files are marked "CONFIDENTIAL … unpublished work.
+  All Rights Reserved" by NeXT, now Apple. No text was copied, but the
+  RAMDAC values and the ROM handshake were first learned there, which
+  matters for upstream review. Now:
+  - the RAMDAC values are explained by Brooktree's Bt463 data sheet (1993
+    Graphics and Imaging Product Databook) and match `tgafb`'s setup of
+    the same chip except for the cursor, sync and pedestal. The data
+    sheet showed the old comment was wrong: command register 0 = `0x40`
+    is 4:1 multiplexing, not 1:1, as the pixel clock requires (1:1 stops
+    at 66 MHz). Sync on green (`0x203` = `0x80`) has no public source yet:
+    confirm it on a real board and its monitor;
+  - the ROM handshake is cited as found by experiment in Previous, which
+    runs the board's ROM image; Previous's `nd_devs.cpp` names the CSR0
+    bits;
+  - "uncached" is no longer claimed: Previous doesn't emulate the i860's
+    caches, so it can't be confirmed (paging off can, since Previous
+    emulates paging).
+  - `../NeXTDimension` stays a local reference only: nothing submitted
+    upstream should cite it.
+- **Previous** is GPL-2 (`../trunk/gpl.txt`); `previous/previous-linux.patch`
+  is under the same license. The NeXT ROMs in its tree are Apple's and are
+  not redistributed here.
+- **Debian, BusyBox, i860 binutils** are only downloaded into `out/`. A
+  published `out/disk.img` would carry the GPL's source obligations for
+  its packages.
+- **Tested:** none of this changes code, only comments and documentation
+  (the kernel's `nextdimension.c` comments included).
 
 ### Tooling
 

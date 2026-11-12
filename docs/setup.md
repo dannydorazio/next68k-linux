@@ -24,6 +24,9 @@ svn checkout -r 1864 https://svn.code.sf.net/p/previous/code/trunk trunk
 git clone https://github.com/johnsonjh/NeXTDimension.git
 ```
 
+NeXT's NeXTdimension sources have no license and are marked confidential;
+read them for orientation only (see `ROADMAP.md`, Done, step 17).
+
 The Linux clone is large; `--depth 1` is enough to build. On a
 case-insensitive disk (the Mac's default), 13 files whose names differ only
 in case show up as modified; mark them so Git leaves them alone:

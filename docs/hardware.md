@@ -1,7 +1,7 @@
 # NeXT hardware notes
 
 What this project has learned about the hardware, from NetBSD's next68k
-port, NeXT's NeXTdimension sources, Previous's source and experiment. It's
+port, Previous's source, chip data sheets and experiment. It's
 a map, not a register reference: the definitions are in the kernel's
 `arch/m68k/include/asm/nexthw.h` and the drivers, and `ROADMAP.md`'s Done
 sections say how each fact was found. Everything here has been tested in
@@ -161,9 +161,19 @@ A cube's NeXTBus board with an i860 XR at 33 MHz, its own DRAM (up to
 - **Byte order:** the i860 runs big-endian but fetches instructions
   little-endian, a doubleword at a time. The host stores each instruction
   word at its address XOR 4.
-- **Boot:** after a restart, the ROM sets the board up and waits for the
-  host's interrupt, then jumps to the start of DRAM, uncached and without
-  paging (`NextDimension-21/ROM/romcode/locore.s`).
+- **Boot** (by experiment in Previous, which runs the board's ROM image):
+  after a restart, the ROM sets the board up and waits for the host's
+  interrupt, then jumps to the start of DRAM with paging off. Previous
+  doesn't emulate the i860's caches, so whether the ROM leaves them on is
+  unknown; check before trusting the shared ring on a real board.
+- **Bt463 RAMDAC** (Brooktree's data sheet, in the 1993 Graphics and
+  Imaging Product Databook on bitsavers and archive.org; Linux's `tgafb`
+  drives the same chip): command register 0 = `0x40` is 4:1 multiplexing,
+  register 1 = `0` gives 16 window types and no cursor, register 2 =
+  `0x80` puts sync on green with a 0 IRE pedestal. A window type of
+  `0x000100` is 8 planes a channel of true color through the palette.
+  Previous ignores the command registers and the window type table, so
+  only the palette is tested.
 
 ## Previous's emulation, where it matters
 
