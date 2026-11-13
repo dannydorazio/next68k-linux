@@ -11,7 +11,7 @@ for a in "$@"; do export "$a"; done
 
 # a Previous just stopped may still have the disk open for a moment
 i=0
-while lsof out/disk.img >/dev/null 2>&1 && [ $i -lt 30 ]; do
+while lsof "${DISK:-out/disk.img}" >/dev/null 2>&1 && [ $i -lt 30 ]; do
 	sleep 1
 	i=$((i + 1))
 done

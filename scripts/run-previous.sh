@@ -1,7 +1,12 @@
 #!/bin/sh
 # Netboot out/nfsroot/private/tftpboot/boot in Previous, or with BOOT=disk
 # boot from out/disk.img's boot blocks and boot partition
-# (scripts/nextboot.py).  NET=0 unplugs the Ethernet cable.
+# (scripts/nextboot.py); BOOT=rom stops at the ROM monitor's prompt, where
+# scripts/input.sh can type a boot command.  NET=0 unplugs the Ethernet
+# cable.  DISK= uses another image as the disk (SCSI ID 0), DISK2= adds a
+# second one (ID 1), and NFSROOT= another directory for Previous's
+# BOOTP/TFTP and NFS server (default out/nfsroot, which serves
+# out/nfsroot/private/tftpboot/boot).
 #
 # Previous gets its own $HOME (out/previous-home) so this configuration
 # does not touch your normal Previous settings.
@@ -12,7 +17,7 @@
 # out/ttyB and logged to out/serial-b.log.  scripts/sysrq.sh sends a magic
 # SysRq.  scripts/input.sh types on the NeXT's keyboard and moves its mouse
 # (through the FIFO out/input).  scripts/stop-previous.sh stops it; it
-# refuses to start while anything has out/disk.img open.
+# refuses to start while anything has one of its disk images open.
 #
 # MACHINE picks the emulated machine: cube (default; NeXTcube, 68040,
 # 64 MB), station (NeXTstation, 32 MB), color (NeXTstation Color, 32 MB),
@@ -73,7 +78,8 @@ esac
 case ${BOOT:-net} in
 net)	bootdev=2 ;;
 disk)	bootdev=1 ;;
-*)	echo "BOOT must be net or disk" >&2; exit 1 ;;
+rom)	bootdev=0 ;;
+*)	echo "BOOT must be net, disk or rom" >&2; exit 1 ;;
 esac
 case ${NET:-1} in
 0)	ethernet=FALSE ;;
@@ -113,15 +119,26 @@ top=$(cd "$(dirname "$0")/.." && pwd)
 previous=${PREVIOUS:-$top/../trunk/build/src/Previous.app/Contents/MacOS/Previous}
 home=$top/out/previous-home
 cfgdir="$home/Library/Application Support/Previous"
+abspath() {
+	echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+}
+disk0=$(abspath "${DISK:-$top/out/disk.img}")
+disk1= disk1type=0 disk1in=FALSE
+if [ "$DISK2" ]; then
+	disk1=$(abspath "$DISK2") disk1type=1 disk1in=TRUE
+fi
+nfsroot=$(abspath "${NFSROOT:-$top/out/nfsroot}")
 
 # Two machines on one disk image corrupt it.
-if users=$(lsof -t "$top/out/disk.img" 2>/dev/null); then
-	echo "out/disk.img is in use by PID $(echo $users)." >&2
-	echo "Stop that first (scripts/stop-previous.sh)." >&2
-	exit 1
-fi
+for disk in "$disk0" $disk1; do
+	if users=$(lsof -t "$disk" 2>/dev/null); then
+		echo "$disk is in use by PID $(echo $users)." >&2
+		echo "Stop that first (scripts/stop-previous.sh)." >&2
+		exit 1
+	fi
+done
 
-mkdir -p "$cfgdir" "$top/out/nfsroot/private/tftpboot"
+mkdir -p "$cfgdir" "$nfsroot/private/tftpboot"
 sed -e "s|@TOP@|$top|g" -e "s|@MACHINETYPE@|$machinetype|" -e "s|@NBIC@|$nbic|" \
 	-e "s|@COLOR@|$color|" -e "s|@BANK@|$bank|" \
 	-e "s|@BOOTDEV@|$bootdev|" -e "s|@ETHERNET@|$ethernet|" \
@@ -130,6 +147,9 @@ sed -e "s|@TOP@|$top|g" -e "s|@MACHINETYPE@|$machinetype|" -e "s|@NBIC@|$nbic|" 
 	-e "s|@RTC@|$rtc|" -e "s|@DSPMEM@|$dspmem|" \
 	-e "s|@ND0@|$nd0|" -e "s|@ND1@|$nd1|" -e "s|@ND2@|$nd2|" \
 	-e "s|@NDBANK@|$ndbank|" \
+	-e "s|@DISK0@|$disk0|" -e "s|@DISK1@|$disk1|" \
+	-e "s|@DISK1TYPE@|$disk1type|" -e "s|@DISK1IN@|$disk1in|" \
+	-e "s|@NFSROOT@|$nfsroot|" \
 	-e "s|@SCREENSLOT@|$screenslot|" \
 	"$top/previous/previous.cfg.in" > "$cfgdir/previous.cfg"
 : > "$top/out/serial-a.log"
@@ -137,6 +157,7 @@ sed -e "s|@TOP@|$top|g" -e "s|@MACHINETYPE@|$machinetype|" -e "s|@NBIC@|$nbic|" 
 rm -f "$top/out/input"
 mkfifo "$top/out/input"
 echo $$ > "$top/out/previous.pid"	# exec keeps the PID
+printf '%s\n' "$disk0" $disk1 > "$top/out/previous.disks"	# for stop-previous.sh
 
 export PREVIOUS_FAST_FORWARD=${FAST:-8}
 export PREVIOUS_I860_SPEED=${I860:-1}

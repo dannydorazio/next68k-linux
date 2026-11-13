@@ -1,6 +1,7 @@
 #!/bin/sh
 # Stop the Previous started by run-previous.sh (the PID in out/previous.pid)
-# and wait until nothing has out/disk.img open any more.  Previous doesn't
+# and check that nothing has its disk images (out/disk.img unless DISK= or
+# DISK2= named others) open any more.  Previous doesn't
 # always exit on SIGTERM; it then gets SIGKILL after 10 seconds, which is
 # like switching the machine off, so sync or shut down the guest first.
 #
@@ -23,7 +24,10 @@ if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
 	fi
 fi
 
-if users=$(lsof -t "$top/out/disk.img" 2>/dev/null); then
-	echo "out/disk.img is still open in PID $(echo $users)" >&2
-	exit 1
-fi
+disks=$(cat "$top/out/previous.disks" 2>/dev/null || echo "$top/out/disk.img")
+for disk in $disks; do
+	if users=$(lsof -t "$disk" 2>/dev/null); then
+		echo "$disk is still open in PID $(echo $users)" >&2
+		exit 1
+	fi
+done

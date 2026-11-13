@@ -34,16 +34,20 @@ bEnablePot = TRUE
 bVerbose = TRUE
 
 [HardDisk]
-szImageName0 = @TOP@/out/disk.img
+szImageName0 = @DISK0@
 nDeviceType0 = 1
 bDiskInserted0 = TRUE
 bWriteProtected0 = FALSE
+szImageName1 = @DISK1@
+nDeviceType1 = @DISK1TYPE@
+bDiskInserted1 = @DISK1IN@
+bWriteProtected1 = FALSE
 
 [Ethernet]
 bEthernetConnected = @ETHERNET@
 bTwistedPair = FALSE
 nHostInterface = 0
-szNFSPathName0 = @TOP@/out/nfsroot
+szNFSPathName0 = @NFSROOT@
 
 [System]
 nMachineType = @MACHINETYPE@
