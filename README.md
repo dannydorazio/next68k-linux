@@ -33,8 +33,11 @@ branch of https://github.com/dannydorazio/linux (`arch/m68k/next/`,
 | `debian-packages` | Extra packages for the Debian image, installed on the host (much faster than apt on the NeXT) |
 | `debian-root/` | Files laid over the Debian root: hostname, fstab (root and swap), DHCP for eth0, resolv.conf, a longer systemd device timeout, a fastfetch config showing the NeXT hardware, and a kernel hook (`etc/kernel/postinst.d/zz-next-boot`) that copies each installed kernel into the boot partition with the command line in `etc/kernel/cmdline` |
 | `scripts/build-image.sh` | Builds the loader and writes the netboot image `out/nfsroot/private/tftpboot/boot` (with the initramfs if built), and the boot block `out/bootblock` |
-| `scripts/run-previous.sh` | Netboots that image in Previous (`BOOT=disk` boots from the disk instead, `NET=0` unplugs the Ethernet cable); serial port A (`ttyPZ0`) is the pseudo terminal `out/ttyA`, logged to `out/serial-a.log`, and port B (`ttyPZ1`) is `out/ttyB`, logged to `out/serial-b.log` |
-| `scripts/stop-previous.sh` | Stops that Previous (SIGKILL if SIGTERM doesn't do it within 10 s) and checks nothing still has `out/disk.img` open; `run-previous.sh` refuses to start while something does |
+| `scripts/build-installer.sh` | Builds the Debian installer for the NeXT into `out/installer/` (see Debian installer below), from GitHub or (`FROM=local`) the local trees |
+| `scripts/test-installer.sh` | Runs a whole unattended install in Previous onto a blank disk in `out/installer-test/`, then boots it and logs in |
+| `installer/` | The installer's parts: the udeb list and `mkinitrd.py` that assembles them, `preseed.cfg`, the NeXT components (`udebs/`), `nextlabel.c`, and the README handed on with it |
+| `scripts/run-previous.sh` | Netboots that image in Previous (`BOOT=disk` boots from the disk instead, `BOOT=rom` stops at the ROM monitor, `NET=0` unplugs the Ethernet cable, `DISK=`/`DISK2=`/`NFSROOT=` use other disk images and netboot directories); serial port A (`ttyPZ0`) is the pseudo terminal `out/ttyA`, logged to `out/serial-a.log`, and port B (`ttyPZ1`) is `out/ttyB`, logged to `out/serial-b.log` |
+| `scripts/stop-previous.sh` | Stops that Previous (SIGKILL if SIGTERM doesn't do it within 10 s) and checks nothing still has its disk images open; `run-previous.sh` refuses to start while something does |
 | `scripts/screenshot.sh` | Saves the emulated screen to `out/screen.png` (or the file given): Previous writes it on SIGHUP, so it works while the Mac's display is locked |
 | `scripts/input.sh` | Types on the emulated NeXT keyboard or moves its mouse (`'type root\n'`, `'key 16'`, `'move 10 -5'`, `'button left down'`): Previous reads the commands from the FIFO `out/input` |
 | `scripts/boot-wait.sh` | Starts `run-previous.sh` in the background with the given settings (`MACHINE=turbo BOOT=disk`, ...), waits for a login prompt or a panic and prints the main boot lines |
@@ -227,6 +230,60 @@ built with `m68k-linux-gnu-gcc -O2 -m68040 -static -nostdlib -ffreestanding
 `rwlock`) with plain `m68k-linux-gnu-gcc -O2` and copied into the Debian
 root.
 
+## Debian installer
+
+![debian-installer on an emulated NeXTcube's 2-bit screen, asking for the language](docs/installer.png)
+
+`./scripts/build-installer.sh` builds a Debian installer for the NeXT, to
+pass on to someone with a NeXT (or Previous) who wants Debian on it
+without this tree. It fetches the kernel and this tree from GitHub as last
+pushed (`FROM=local` takes `../linux` and this checkout as they are),
+builds the kernel package, the loader and the installer's NeXT components,
+and assembles debian-installer from Debian Ports' current udebs. Run it
+again whenever any of those has changed. Everything lands in
+`out/installer/`:
+
+| File | What |
+|---|---|
+| `next68k-debian-installer-DATE.tar.xz` | everything below, to hand on |
+| `boot` | netboot image: loader, kernel and installer (`b en()boot` at the ROM monitor) |
+| `installer.img` | a disk that boots the installer: for a SCSI emulator (BlueSCSI, SCSI2SD) or a second disk in Previous |
+| `README.txt` | instructions for whoever gets it (from `installer/README.txt`) |
+| `MANIFEST` | the commits it was built from, and every udeb's version |
+| `initrd.gz`, `vmlinuz`, `bootblock`, `linux-image-*.deb`, `SHA256SUMS` | the parts |
+
+The installer is the regular debian-installer, with every component in its
+initrd (`installer/packages`, assembled by `installer/mkinitrd.py`, which
+checks the archive's signature and every file's checksum), so it downloads
+only the base system and packages. Partitioning and the boot loader are
+our own (`installer/udebs/`), since parted has no NeXT labels and
+Debian's kernels don't support the NeXT:
+
+- `next-partitioner` ("Partition disks") gives the chosen disk a NeXT label
+  (`installer/nextlabel.c`, the layout `mkdisk.py` makes): ext4 root on
+  the rest of the disk, swap (256 MB by default) and a 32 MB boot
+  partition, with the loader in the boot blocks.
+- `next-installer` ("Install the kernel and make the disk bootable")
+  writes `/etc/kernel/cmdline` and installs our kernel package, whose
+  `zz-next-boot` hook writes the boot partition. Before that, its
+  post-base-installer hook copies the NeXT settings from `debian-root/` and
+  sets up passwords, login and early swap as `build-debian.sh` does.
+
+`installer/preseed.cfg` answers what every NeXT install needs (Debian
+Ports' mirror, no kernel from the archive, networkd); the rest is asked
+as usual. `next-partitioner` loads it at start-up under its own name: as
+`/preseed.cfg` it would make the installer run on one console only, and
+the kernel prefers the serial port. So the installer runs on the screen
+(the NeXT keyboard works, with the kernel's US keymap) and on serial
+port A, as separate instances: use either.
+
+`./scripts/test-installer.sh` runs a whole install in Previous with every
+question answered (`installer/test-preseed.cfg`) and then boots the result
+and logs in. It uses only `out/installer-test/`: a blank target disk and
+its own netboot directory (`run-previous.sh`'s `DISK=`, `DISK2=` and
+`NFSROOT=`). `MEDIA=disk` starts the installer from a copy of
+`installer.img` instead.
+
 ## Network
 
 Previous's SLiRP network is 10.0.2.0/24: the NeXT gets 10.0.2.15 by DHCP
@@ -298,7 +355,9 @@ Debian, on the NeXTcube (also with a NeXTdimension), NeXTstation (32 MB),
 NeXTstation Color, NeXTstation Turbo, NeXTstation Turbo Color and NeXTcube
 Turbo, and the 68030 NeXT Computer (a full systemd boot to a login in about 21 emulated minutes),
 and a NeXTcube Turbo with a 68060 (`CPU=68060`); not on real
-hardware. See `ROADMAP.md` for what's next.
+hardware. A Debian installer for the NeXT (`scripts/build-installer.sh`,
+above) installs all of this onto a blank disk, tested in Previous on the
+NeXTcube. See `ROADMAP.md` for what's next.
 
 ## License
 

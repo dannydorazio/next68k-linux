@@ -37,6 +37,12 @@ tooling in this directory; emulator patches in `previous/`.
 - A 68060 NeXT (Done, step 21): Previous patched to put a 68060 in a
   Turbo (`CPU=68060`), and the loader and kernel taught about it; Debian
   boots to a login and fastfetch shows "Motorola 68060".
+- A Debian installer for the NeXT (Done, step 22): `build-installer.sh` builds
+  debian-installer from Debian Ports' udebs with our kernel and two NeXT
+  steps of our own (a NeXT-label partitioner and the kernel install), from
+  GitHub or the local trees, as a netboot image, a disk image and a
+  tarball to pass on; `test-installer.sh` runs a whole install in Previous
+  (about 2½ hours on the 64 MB NeXTcube), which then boots on its own.
 - X and WindowMaker (Done, step 19): xdm on the screen, WindowMaker as
   the session, installed on the host into `out/disk.img`
   (`scripts/install-packages.sh`). Tested on the NeXTcube Turbo with a
@@ -89,6 +95,13 @@ Known problems and loose ends, newest first. Each says where it was found;
 when one is fixed, move what was learned into that step's Done section and
 delete it here.
 
+- **dhcpcd is killed by its seccomp filter** ("Bad system call") on m68k,
+  so Debian's ifupdown can't get a DHCP lease on the NeXT; the installer
+  and the image use systemd-networkd instead. Whether the filter lacks an
+  m68k syscall or our kernel answers wrongly is unknown. Step 22.
+- **The installer takes over two hours** on a 64 MB 25 MHz NeXTcube in
+  Previous (`FAST=8`), most of it debootstrap and apt on the 68040, which
+  runs without d-i's later `force-unsafe-io`. Step 22.
 - **NeXTdimension's X driver, what the i860 doesn't do yet** (step 20):
   core (non-Render) text and images go through the CPU: the 68040 copies
   a 256x256 image in 116 ms, most of it sending it to X. Render beyond
@@ -1110,6 +1123,95 @@ NeXT never made one; Previous's CPU core (WinUAE's) has a 68060, and
   login in 78 s at `FAST=8`, `/proc/cpuinfo` shows a 68060 CPU, MMU and
   FPU, and fastfetch on `tty1` shows "Motorola 68060 @ 33 MHz".
 
+### 22. A Debian installer for the NeXT
+
+`scripts/build-installer.sh` builds debian-installer for the NeXT into
+`out/installer/`: a netboot image, a disk image that boots it, the parts,
+a README for whoever gets it (`installer/README.txt`), a manifest and a
+tarball of it all. By default it fetches the kernel and this tree from
+GitHub as pushed (shallow fetches into bare repositories, so the kernel's
+case-only file names don't matter on the Mac), so it can be rerun from
+nothing but the network; `FROM=local` builds `../linux` and this
+checkout as they are.
+
+- **Assembled, not built:** `installer/mkinitrd.py` takes Debian Ports'
+  current udebs (`installer/packages`: debian-installer's netboot lists
+  plus everything a netboot install normally downloads later), checks
+  InRelease with the ports keyring (`sqv`) and every file's SHA-256,
+  unpacks them with `dpkg --root` and merges `/usr` as d-i's build does,
+  and adds libgcc_s and libatomic (no udebs) from the archive. A check
+  that every ELF file finds its libraries (with RPATH) caught the first
+  attempts' gaps. With everything in the initrd and
+  `anna/standard_modules` off, the installer downloads no components, so
+  it can't get out of step with the archive mid-install.
+- **Two NeXT components** (`installer/udebs/`), since parted has no NeXT
+  labels and Debian's kernels don't support the NeXT:
+  `next-partitioner` (menu 4200, in partman's place: provides
+  `created-fstab`, `mounted-partitions`, ...) labels a whole disk with
+  `nextlabel` (`installer/nextlabel.c`, `mkdisk.py`'s layout in C): root,
+  swap, a 32 MB boot partition and the loader in the boot blocks; makes
+  ext4 and swap, turns swap on at once and writes fstab. `next-installer`
+  (menu 7400, `bootable-system`) writes `/etc/kernel/cmdline` and installs
+  our kernel package, whose `zz-next-boot` hook fills the boot partition;
+  its post-base-installer hook applies what `build-debian.sh` does
+  (`debian-root/` files, SHA-512 passwords, login timeout, early swap,
+  networkd). main-menu orders steps by dependencies before menu numbers:
+  with the partitioner depending on `next-installer` (for shared files),
+  partitioning came after the base system, which then had no `/target`.
+- **Memory:** every NeXT is in d-i's low memory mode (under 120 MB on
+  m68k). The first initrd, 28 MB unpacked, overflowed the kernel's rootfs
+  tmpfs (half of 64 MB): "Initramfs unpacking failed: write error".
+  Dropping the templates' translations (7 MB, as d-i's `DROP_LANG` does)
+  and keyboard selection (console-setup and its 4 MB xkb database; the
+  NeXT keyboard driver feeds the kernel's US keymap) brought it to 19 MB.
+  xz took 255 emulated seconds to decompress on the 68040 (and failed
+  with "junk within compressed archive" with a second archive appended);
+  gzip takes 49, for 2 MB more.
+- **wget:** busybox-udeb has no wget applet, so the mirror check failed;
+  wget-udeb would add 6 MB of OpenSSL. The regular busybox package's
+  binary, as `/usr/bin/wget`, does: d-i's fetch-url knows busybox's wget.
+- **Network on the new system:** ifupdown's dhcpcd dies at once with
+  "Bad system call" (its seccomp filter) on m68k, so `preseed.cfg` has
+  netcfg write only the loopback, and the new system uses networkd, as
+  the image does.
+- **`zz-next-boot`** now writes the boot partition of the disk holding
+  `/` first: started from its own disk, the installer's is the first disk
+  with a boot partition.
+- **Consoles:** with a `/preseed.cfg` in the initrd, rootskel's
+  `reopen-console` runs the installer on the kernel's preferred console
+  only, and with `console=ttyPZ0,9600 console=tty0` that was the serial
+  port: the screen stayed on the kernel's messages. The defaults are now
+  loaded by `next-partitioner`'s `S29next-preseed` from
+  `/usr/lib/next-installer/preseed.cfg`, so the installer runs on the
+  screen and the serial port both; the low memory notice, shown before
+  that on the preferred console alone, is preseeded away. Checked on the
+  screen: the language question, answered with the NeXT keyboard.
+- **Disk names:** the kernel names SCSI disks in ID order; root= and
+  fstab name the target as it will be named once the installer's disk
+  (its NeXT label is named "Debian installer") is gone.
+- **Tested:** `scripts/test-installer.sh` (every question answered by
+  `installer/test-preseed.cfg`, the installer on the serial console) on
+  the 64 MB NeXTcube at `FAST=8`, onto a blank 2 GB disk: netbooted, the
+  install took 146 minutes (most of it debootstrap unpacking and
+  configuring on the 68040, and apt's first update), powered off by
+  itself, and the disk then booted on its own to a login: 148 packages,
+  386 MB used, swap on, SHA-512 passwords, fastfetch showing the NeXTcube.
+  That run found the dhcpcd failure. Then `MEDIA=disk` (142 minutes)
+  started the installer from `installer.img` at SCSI ID 0, its kernel and
+  10 MB initrd loaded from the boot partition (the first test of an initrd
+  from disk), installing to the disk at ID 1, which booted alone as sda.
+  Last, with the defaults loaded by `S29next-preseed`, netbooted again
+  (156 minutes): the new system boots to `running` with no failed units,
+  eth0 up through networkd, swap on, 385 MB used.
+- **ROM:** `b sd(1,0,0)` at the ROM monitor boots the installer's disk at
+  SCSI ID 1, as `installer/README.txt` says (`run-previous.sh BOOT=rom`
+  and `input.sh`).
+- **`FROM=github`:** fetched both repositories and built the kernel
+  package from `next68k-linux`, then stopped at `installer/`, which isn't
+  on GitHub until this step is pushed.
+- **Not tested:** real hardware; a whole install driven from the screen
+  (only its first questions); machines other than the 64 MB NeXTcube.
+
 ### Tooling
 
 - **Build:** a cross-build container (with m68k glibc headers), plus
@@ -1126,8 +1228,12 @@ NeXT never made one; Previous's CPU core (WinUAE's) has a 68060, and
     (`build-dockapps.sh`) and the NeXTdimension's X driver
     (`build-xdriver.sh`).
 - **Emulator:** Previous configuration and run script, both serial ports on
-  PTYs (`out/ttyA`, `out/ttyB`); `BOOT=disk`, `NET=0`, `MACHINE=`,
-  `CPU=68060`, `ND=1` with `ND_BANK=`, `ND_SLOTS=` and `I860=`.
+  PTYs (`out/ttyA`, `out/ttyB`); `BOOT=disk`, `BOOT=rom`, `NET=0`,
+  `MACHINE=`, `CPU=68060`, `ND=1` with `ND_BANK=`, `ND_SLOTS=` and
+  `I860=`; `DISK=`, `DISK2=` and `NFSROOT=` for other disk images and
+  netboot directories.
+- **Installer:** `build-installer.sh` (debian-installer for the NeXT,
+  `installer/`) and `test-installer.sh` (a whole install in Previous).
 - **Console:** `console.py` (interactive), `serial-run.py` (scripted,
   `--port b`, `--login`), `sysrq.sh` (magic SysRq), `screenshot.sh` (the
   emulated screen as a PNG), `input.sh` (types on the NeXT keyboard, moves

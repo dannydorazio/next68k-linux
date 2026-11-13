@@ -3,9 +3,9 @@
 Linux (and Debian m68k) on the 68030/68040 NeXT computers, developed and
 tested in the Previous emulator. This repository holds everything but the
 kernel: the boot loader, build and emulator scripts, the Debian image
-setup, tests, the NeXTdimension's i860 firmware, the Previous patch and
-all documentation. Start every session by reading the status at the top
-of `ROADMAP.md`.
+setup and installer, tests, the NeXTdimension's i860 firmware, the
+Previous patch and all documentation. Start every session by reading the
+status at the top of `ROADMAP.md`.
 
 ## Where things are
 
@@ -76,6 +76,8 @@ python3 previous/patches.py refresh NAME # after changing Previous: rewrite that
 make -C ../trunk/build                    # rebuild Previous
 ./nd-firmware/build.sh                    # after changing ndfw.s
 ./scripts/build-xdriver.sh                # NeXTdimension X driver + tests/xbench into out/xdriver
+./scripts/build-installer.sh              # Debian installer into out/installer (FROM=local: ../linux and this tree)
+./scripts/test-installer.sh               # unattended install in Previous onto out/installer-test (over 2 hours)
 ```
 
 Check the end of `build-kernel.sh`'s output, not just for `error:`: a
