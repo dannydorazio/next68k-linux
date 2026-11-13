@@ -1,0 +1,15 @@
+Package: next-installer
+Version: @VERSION@
+Architecture: m68k
+Installer-Menu-Item: 7400
+Maintainer: next68k-linux <https://github.com/dannydorazio/next68k-linux>
+Depends: cdebconf-udeb, di-utils, installed-base, next-partitioner
+Provides: bootable-system
+Section: debian-installer
+Priority: standard
+Description: Install the NeXT kernel and make the disk bootable
+ Installs the NeXT Linux kernel package into the new system, which writes
+ the kernel into the disk's boot partition (its zz-next-boot hook), along
+ with the NeXT's settings for Debian (from next68k-linux's debian-root/).
+ The disk's boot blocks, the loader the ROM starts, were written by
+ next-partitioner.  Takes the place of a boot loader installer.

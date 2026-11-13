@@ -1,0 +1,67 @@
+#!/bin/sh
+# Install the kernel and make the disk bootable: write the kernel command
+# line to /etc/kernel/cmdline and install the NeXT kernel package, whose
+# zz-next-boot hook copies the kernel and command line into the boot
+# partition, where the loader in the boot blocks (written by
+# next-partitioner) reads them.
+set -e
+
+. /usr/share/debconf/confmodule
+. /usr/lib/next-installer/functions.sh
+
+log() {
+	logger -t next-installer "$@"
+}
+
+fail() {
+	log "$1"
+	db_progress STOP || true
+	db_subst next-installer/failed ERROR "$1"
+	db_input critical next-installer/failed || true
+	db_go || true
+	exit 1
+}
+
+db_get next-partitioner/root
+root=$RET
+db_get next-partitioner/boot
+boot=$RET
+[ "$root" ] && [ "$boot" ] || fail "No NeXT disk was partitioned."
+
+# The consoles the installer was started with, else both the serial port
+# and the screen, with the screen as /dev/console.
+consoles=
+for arg in $(cat /proc/cmdline); do
+	case $arg in
+	console=*)
+		consoles="${consoles:+$consoles }$arg" ;;
+	esac
+done
+db_get next-installer/cmdline
+if [ -z "$RET" ]; then
+	db_set next-installer/cmdline \
+		"${consoles:-console=ttyPZ0,9600 console=tty0} root=$root rootwait rw"
+fi
+db_subst next-installer/cmdline ROOT "$root"
+db_input low next-installer/cmdline || true
+db_go || exit 10
+db_get next-installer/cmdline
+echo "$RET" > /target/etc/kernel/cmdline
+log "command line: $RET"
+
+db_progress START 0 2 next-installer/progress/title
+db_progress INFO next-installer/progress/kernel
+deb=$(ls $NEXT_LIB/linux-image-*.deb)
+cp $deb /target/tmp/
+if ! log-output -t next-installer in-target dpkg -i /tmp/${deb##*/}; then
+	rm -f /target/tmp/${deb##*/}
+	fail "dpkg -i ${deb##*/} failed."
+fi
+rm -f /target/tmp/${deb##*/}
+db_progress STEP 1
+
+[ "$(dd if=$boot bs=4 count=1 2>/dev/null)" = NXBK ] ||
+	fail "The kernel package didn't write the kernel into $boot."
+db_progress STEP 1
+db_progress STOP
+exit 0

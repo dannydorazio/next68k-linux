@@ -1,0 +1,148 @@
+#!/bin/sh
+# Partition disks: give the chosen disk a NeXT disk label (nextlabel), make
+# the root file system and swap, and mount them on /target, with an fstab,
+# as partman would.  The boot partition stays empty until next-installer
+# installs the kernel.
+set -e
+
+. /usr/share/debconf/confmodule
+. /usr/lib/next-installer/functions.sh
+
+log() {
+	logger -t next-partitioner "$@"
+}
+
+fail() {
+	log "$1"
+	db_progress STOP || true
+	db_subst next-partitioner/failed ERROR "$1"
+	db_input critical next-partitioner/failed || true
+	db_go || true
+	exit 1
+}
+
+db_capb backup
+
+choices_c=
+choices=
+for d in $(scsi_disks); do
+	installer_disk $d && continue
+	item="$(final_name $d) (SCSI ID $(scsi_id $d)): $(disk_info $d)"
+	choices_c="${choices_c:+$choices_c, }$d"
+	choices="${choices:+$choices, }$(echo "$item" | sed 's/,/\\,/g')"
+done
+if [ -z "$choices_c" ]; then
+	db_input critical next-partitioner/no-disks || true
+	db_go || true
+	exit 1
+fi
+db_subst next-partitioner/disk CHOICES_C "$choices_c"
+db_subst next-partitioner/disk CHOICES "$choices"
+
+state=1
+while [ $state -lt 4 ]; do
+	case $state in
+	1)
+		db_input high next-partitioner/disk || true
+		db_go || exit 10
+		state=2
+		;;
+	2)
+		db_input medium next-partitioner/swap || true
+		db_go || { state=1; continue; }
+		db_get next-partitioner/swap
+		swap=$RET
+		case $swap in
+		''|*[!0-9]*)
+			swap=-1 ;;
+		esac
+		if [ "$swap" -lt 0 ] || [ "$swap" -gt 4096 ]; then
+			db_input critical next-partitioner/bad-swap || true
+			db_go || true
+			db_fset next-partitioner/swap seen false
+			continue
+		fi
+		state=3
+		;;
+	3)
+		db_get next-partitioner/disk
+		disk=$RET
+		layout="$(final_name $disk)1: / (ext4), the rest of the disk"
+		if [ "$swap" -gt 0 ]; then
+			layout="$layout; $(final_name $disk)2: swap, $swap MB"
+		fi
+		layout="$layout; then a 32 MB boot partition for the kernel"
+		db_subst next-partitioner/confirm DISK "$disk"
+		db_subst next-partitioner/confirm INFO "$(disk_info $disk)"
+		db_subst next-partitioner/confirm LAYOUT "$layout"
+		db_input critical next-partitioner/confirm || true
+		db_go || { state=1; continue; }
+		db_get next-partitioner/confirm
+		[ "$RET" = true ] || exit 10
+		state=4
+		;;
+	esac
+done
+
+# Let go of the disk if an earlier try left it in use.
+umount /target 2>/dev/null || true
+for p in /dev/$disk[0-9]*; do
+	[ -e "$p" ] || continue
+	swapoff $p 2>/dev/null || true
+	umount $p 2>/dev/null || true
+done
+
+db_subst next-partitioner/progress/title DISK "$disk"
+db_progress START 0 4 next-partitioner/progress/title
+db_progress INFO next-partitioner/progress/label
+out=$(nextlabel /dev/$disk $swap 32 $NEXT_LIB/bootblock Debian 2>&1) ||
+	fail "nextlabel: $out"
+log "$out"
+root=$disk$(echo "$out" | sed -n 's/^root //p')
+swappart=$(echo "$out" | sed -n 's/^swap //p')
+[ -z "$swappart" ] || swappart=$disk$swappart
+boot=$disk$(echo "$out" | sed -n 's/^boot //p')
+i=0
+while [ ! -b /dev/$boot ]; do
+	[ $i -lt 20 ] || fail "/dev/$boot didn't appear"
+	sleep 1
+	i=$((i + 1))
+done
+
+db_progress STEP 1
+db_progress INFO next-partitioner/progress/mkfs
+log-output -t next-partitioner mke2fs -F -q -t ext4 -L debian /dev/$root ||
+	fail "mke2fs /dev/$root failed"
+
+db_progress STEP 1
+if [ "$swappart" ]; then
+	db_progress INFO next-partitioner/progress/swap
+	log-output -t next-partitioner mkswap /dev/$swappart ||
+		fail "mkswap /dev/$swappart failed"
+	# The installer itself is short of memory on a NeXT.
+	swapon /dev/$swappart || log "swapon /dev/$swappart failed"
+fi
+
+db_progress STEP 1
+db_progress INFO next-partitioner/progress/mount
+mkdir -p /target
+mount -t ext4 /dev/$root /target || fail "mounting /dev/$root failed"
+mkdir -p /target/etc
+final=$(final_name $disk)
+{
+	echo "# /etc/fstab, written by the NeXT installer.  / must be the partition"
+	echo "# that root= names in /etc/kernel/cmdline (which the boot partition"
+	echo "# has a copy of: see /etc/kernel/postinst.d/zz-next-boot)."
+	echo "# <file system>	<mount point>	<type>	<options>		<dump>	<pass>"
+	echo "/dev/$final${root#$disk}	/		ext4	defaults,noatime	0	1"
+	[ -z "$swappart" ] ||
+		echo "/dev/$final${swappart#$disk}	none		swap	sw,nofail		0	0"
+} > /target/etc/fstab
+
+# For next-installer
+db_set next-partitioner/root "/dev/$final${root#$disk}"
+db_set next-partitioner/boot "/dev/$boot"
+
+db_progress STEP 1
+db_progress STOP
+exit 0

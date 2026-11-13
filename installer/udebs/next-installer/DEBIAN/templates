@@ -1,0 +1,33 @@
+Template: debian-installer/next-installer/title
+Type: text
+Description: Install the kernel and make the disk bootable
+
+Template: next-installer/cmdline
+Type: string
+Description: Kernel command line:
+ The loader starts the kernel with this command line, which Debian keeps
+ in /etc/kernel/cmdline.  root= must name the root partition as the
+ installed system will name it: ${ROOT}.
+
+Template: next-installer/progress/title
+Type: text
+Description: Installing the kernel
+
+Template: next-installer/progress/kernel
+Type: text
+Description: Installing the NeXT kernel package...
+
+Template: next-installer/failed
+Type: error
+Description: The kernel couldn't be installed
+ ${ERROR}
+ .
+ Check /var/log/syslog, or the fourth virtual console, for details.
+
+Template: next-installer/progress/configure
+Type: text
+Description: Setting the new system up for the NeXT...
+
+Template: base-installer/progress/next-config
+Type: text
+Description: Setting the new system up for the NeXT...

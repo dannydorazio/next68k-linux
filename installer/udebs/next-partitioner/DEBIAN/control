@@ -1,0 +1,14 @@
+Package: next-partitioner
+Version: @VERSION@
+Architecture: m68k
+Installer-Menu-Item: 4200
+Maintainer: next68k-linux <https://github.com/dannydorazio/next68k-linux>
+Depends: cdebconf-udeb, di-utils, e2fsprogs-udeb
+Provides: created-fstab, made-filesystems, mounted-partitions, partitioned-harddrives
+Section: debian-installer
+Priority: standard
+Description: Partition a disk with a NeXT disk label
+ Gives a disk a NeXT disk label with the root file system, swap and the
+ boot partition the NeXT Linux loader reads the kernel from, makes the
+ file systems and mounts them on /target.  Takes the place of partman,
+ since parted has no NeXT labels.

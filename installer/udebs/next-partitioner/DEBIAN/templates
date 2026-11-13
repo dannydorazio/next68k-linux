@@ -1,0 +1,79 @@
+Template: debian-installer/next-partitioner/title
+Type: text
+Description: Partition disks
+
+Template: next-partitioner/root
+Type: string
+Description: for internal use only
+ The root partition, as the installed system will name it.
+
+Template: next-partitioner/boot
+Type: string
+Description: for internal use only
+ The boot partition, as the installer names it.
+
+Template: next-partitioner/disk
+Type: select
+Choices-C: ${CHOICES_C}
+Choices: ${CHOICES}
+Description: Disk to install Debian on:
+ The disk is given a NeXT disk label with three partitions: the root file
+ system, swap, and a small boot partition for the kernel.  Everything on it
+ is erased.
+ .
+ Disks are named as the kernel will name them once the installer is gone,
+ if it was started from a disk of its own.
+
+Template: next-partitioner/swap
+Type: string
+Default: 256
+Description: Swap space (MB):
+ A NeXT has little memory, and Debian needs swap on it: 256 MB is enough
+ for a 64 MB machine.  0 leaves swap out.
+
+Template: next-partitioner/bad-swap
+Type: error
+Description: Not a size
+ The swap size must be a whole number of megabytes, from 0 to 4096.
+
+Template: next-partitioner/confirm
+Type: boolean
+Default: false
+Description: Erase ${DISK} and install Debian on it?
+ ${DISK} (${INFO}) will get a new NeXT disk label:
+ .
+ ${LAYOUT}
+ .
+ Everything now on the disk will be lost.
+
+Template: next-partitioner/no-disks
+Type: error
+Description: No disk found
+ There is no SCSI disk to install on, other than the installer's own.
+
+Template: next-partitioner/failed
+Type: error
+Description: Partitioning failed
+ ${ERROR}
+ .
+ Check /var/log/syslog, or the fourth virtual console, for details.
+
+Template: next-partitioner/progress/title
+Type: text
+Description: Partitioning ${DISK}
+
+Template: next-partitioner/progress/label
+Type: text
+Description: Writing the NeXT disk label...
+
+Template: next-partitioner/progress/mkfs
+Type: text
+Description: Making the ext4 file system...
+
+Template: next-partitioner/progress/swap
+Type: text
+Description: Making the swap space...
+
+Template: next-partitioner/progress/mount
+Type: text
+Description: Mounting the file system...

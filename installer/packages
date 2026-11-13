@@ -1,0 +1,87 @@
+# The udebs (debian-installer components) in the NeXT installer's initrd,
+# from Debian Ports' unstable main/debian-installer, with everything they
+# depend on.  mkinitrd.py reads this.  It's debian-installer's own netboot
+# list (build/pkg-lists/{base,netboot/common,netboot/m68k.cfg} in its
+# source) plus the components a netboot install normally downloads later:
+# the initrd carries all of them, and the installer downloads none
+# (anna/standard_modules is false in preseed.cfg), so the installer can't
+# get out of step with the archive halfway through.
+#
+# "-name" leaves a package out even when another depends on it, for the
+# reason given.  mkinitrd.py checks that every program in the initrd still
+# finds the libraries it links with.
+
+# The installer itself
+busybox-udeb
+anna
+archdetect
+cdebconf-udeb
+cdebconf-priority
+cdebconf-newt-udeb
+cdebconf-text-udeb
+di-utils
+di-utils-reboot
+di-utils-shell
+di-utils-mapdevfs
+di-utils-terminfo
+libdebconfclient0-udeb
+libdebian-installer4-udeb
+lowmemcheck
+lowmem
+main-menu
+rootskel
+udpkg
+udev-udeb
+kmod-udeb
+rescue-check
+save-logs
+nano-udeb
+
+# Preseeding: preseed.cfg in the initrd, and preseed/file= or url= from
+# the command line
+env-preseed
+preseed-common
+initrd-preseed
+file-preseed
+network-preseed
+
+# Language, time zone and clock.  No keyboard selection (console-setup,
+# kbd): its keyboard database alone is 4 MB of memory, and the NeXT
+# keyboard driver gives the kernel's US keymap standard key codes.
+localechooser
+installation-locale
+libfribidi0-udeb
+tzsetup-udeb
+clock-setup
+
+# Network and mirror
+hw-detect
+ethdetect
+netcfg
+choose-mirror
+net-retriever
+download-installer
+debian-ports-archive-keyring-udeb
+
+# Users, base system, apt, tasks, finishing
+user-setup-udeb
+e2fsprogs-udeb
+bootstrap-base
+base-installer
+apt-setup-udeb
+apt-mirror-setup
+pkgsel
+finish-install
+
+# The NeXT's own (installer/udebs/): partitioning with a NeXT disk label,
+# and the kernel and boot blocks
+next-partitioner
+next-installer
+
+# Not needed on a NeXT
+-pciutils-udeb		# no PCI
+-wpasupplicant-udeb	# no wireless
+-crypto-modules		# the kernel has no modules: everything's built in
+-debian-archive-keyring-udeb	# Debian Ports' keyring takes its place
+-partman-base		# replaced by next-partitioner: parted has no NeXT labels
+-nobootloader		# replaced by next-installer

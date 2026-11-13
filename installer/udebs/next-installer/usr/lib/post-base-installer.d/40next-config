@@ -1,0 +1,23 @@
+#!/bin/sh
+# Set the new system up for the NeXT as scripts/build-debian.sh sets up
+# next68k-linux's Debian image: the files from its debian-root/ that suit
+# any NeXT (build-installer.sh puts them in $NEXT_LIB/target); passwords
+# hashed with SHA-512 crypt instead of yescrypt, which takes minutes to
+# check at 25 MHz; DHCP on eth0 through systemd-networkd (preseed.cfg
+# leaves ifupdown only the loopback); 5 minutes for login, which needs
+# more than a minute while the rest of the system starts; early swap; and
+# no e2scrub_reap, which takes minutes of CPU at every boot for LVM
+# snapshots there aren't.  Runs after the base system is installed, so
+# before the users' passwords are set (user-setup-apply, from
+# finish-install).
+set -e
+
+. /usr/lib/next-installer/functions.sh
+
+cp -a $NEXT_LIB/target/. /target/
+sed -i 's/pam_unix.so obscure yescrypt/pam_unix.so obscure sha512 rounds=5000/' \
+	/target/etc/pam.d/common-password
+sed -i -e 's/^ENCRYPT_METHOD.*/ENCRYPT_METHOD SHA512/' \
+	-e 's/^LOGIN_TIMEOUT.*/LOGIN_TIMEOUT		300/' /target/etc/login.defs
+in-target systemctl enable next-early-swap.service systemd-networkd.service
+in-target systemctl disable e2scrub_reap.service 2>/dev/null || true

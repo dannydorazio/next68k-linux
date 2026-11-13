@@ -1,0 +1,14 @@
+#!/bin/sh
+# The NeXT's defaults (next68k-linux's installer/preseed.cfg), loaded as
+# initrd-preseed loads /preseed.cfg, just before it, so that a /preseed.cfg
+# or the command line can override them.  Under that name they'd put the
+# installer in its preseeding mode (rootskel's reopen-console), where it
+# runs on one console only, the kernel's preferred one, which is the
+# serial port even with console=tty0 last.  This way it runs on the screen
+# and the serial port both.
+set -e
+
+. /usr/share/debconf/confmodule
+. /lib/preseed/preseed.sh
+
+preseed_location file:///usr/lib/next-installer/preseed.cfg
