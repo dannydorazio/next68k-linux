@@ -16,9 +16,18 @@ my ($version, $image) = @ARGV;
 $image //= "/boot/vmlinuz-$version" if defined $version;
 die "usage: $0 VERSION [IMAGE]\n" unless defined $image;
 
-# Find a disk whose NeXT label has a boot partition.
+# Find a disk whose NeXT label has a boot partition: the one holding / if
+# it has one (with the installer's own disk attached, there are two).
 my ($dev, $size);
-for my $disk (glob("/dev/sd[a-z]")) {
+my $rootdev = (stat("/"))[0];
+my @disks = glob("/dev/sd[a-z]");
+for my $part (glob("/dev/sd[a-z][0-9]")) {
+	next unless (stat($part))[6] == $rootdev;
+	(my $disk = $part) =~ s/[0-9]+$//;
+	@disks = ($disk, grep { $_ ne $disk } @disks);
+	last;
+}
+for my $disk (@disks) {
 	open(my $d, "<:raw", $disk) or next;
 	read($d, my $label, 8192) == 8192 or next;
 	close($d);
